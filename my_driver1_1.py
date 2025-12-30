@@ -7,18 +7,18 @@ import math
 from geometry_msgs.msg import Accel, PoseStamped
 
 # === [최종 PID 제어 설정] ===
-PATH_FILENAME = 'converted_path2.json'
-TARGET_VELOCITY = 0.15      # (m/s)
+PATH_FILENAME = 'path_shifted_1_1.json'
+TARGET_VELOCITY = 0.20      # (m/s)
 
 # 1. 주시 거리 (Look Ahead)
 # 회전교차로에서 안쪽을 파고들지 않으려면 짧게 봐야 합니다.
 # 0.2m ~ 0.25m 추천
-LOOK_AHEAD_DISTANCE = 0.25  
+LOOK_AHEAD_DISTANCE = 0.4  
 
 # 2. PID 게인 튜닝 (오차 5cm 목표)
-Kp = 4.5   # P: 현재 오차만큼 핸들을 팍 꺾음 (기본 힘)
+Kp = 2.0   # P: 현재 오차만큼 핸들을 팍 꺾음 (기본 힘)
 Ki = 0.05  # I: 오차가 안 줄어들면 힘을 '누적'시킴 (밀림 방지 핵심)
-Kd = 35.0  # D: 핸들이 흔들리지 않게 잡아주는 댐퍼 (진동 방지)
+Kd = 1.0  # D: 핸들이 흔들리지 않게 잡아주는 댐퍼 (진동 방지)
 
 class PIDIntegralDriver(Node):
     def __init__(self):
