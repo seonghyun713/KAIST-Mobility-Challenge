@@ -6,28 +6,22 @@ import os
 import math
 from geometry_msgs.msg import Accel, PoseStamped
 
-# ===============================================================
-# [1] 1번 차량 전용 설정
-# ===============================================================
 VEHICLE_ID = 1
-PATH_FILENAME = 'converted_path1_1.json'
+PATH_FILENAME = 'converted_path1_1_final.json'
 VEHICLE_TOPIC_NAME = '/CAV_01'
 
-print(f"\n🔵 [차량 {VEHICLE_ID}] 솔로 주행 모드 시작 (Steering Boost ON)")
+print(f"\n [차량 {VEHICLE_ID}] 주행 시작")
 print(f"   - 경로 파일: {PATH_FILENAME}")
 print(f"   - 토픽 이름: {VEHICLE_TOPIC_NAME}")
 
-# ===============================================================
-# [2] 튜닝 파라미터 (회전교차로 최적화 값 유지)
-# ===============================================================
-TARGET_VELOCITY = 0.38      
-LOOK_AHEAD_DISTANCE = 0.23  # 짧게 설정하여 코너 안쪽 공략
 
-# 조향 강화 파라미터
-Kp = 4.0      # 각도 오차에 민감하게 반응
+TARGET_VELOCITY = 0.48     
+LOOK_AHEAD_DISTANCE = 0.23 
+
+Kp = 4.5      # 각도 오차에 민감하게 반응
 Ki = 0.05
-Kd = 1.7      # 진동 방지
-K_cte = 6.0   # 경로 이탈 시 3배 강하게 복귀 (핸들 팍 꺾음)
+Kd = 2.3      # 진동 방지
+K_cte = 5.0   # 경로 이탈 시 복귀
 
 class Vehicle1Driver(Node):
     def __init__(self):
@@ -65,9 +59,9 @@ class Vehicle1Driver(Node):
                 data = json.load(f)
                 self.path_x = data.get('X') or data.get('x') or []
                 self.path_y = data.get('Y') or data.get('y') or []
-                self.get_logger().info(f"✅ 경로 파일 로드 완료: {len(self.path_x)} points")
+                self.get_logger().info(f"경로 파일 로드 완료: {len(self.path_x)} points")
         else:
-            self.get_logger().error(f"❌ 경로 파일 없음: {PATH_FILENAME}")
+            self.get_logger().error(f"경로 파일 없음: {PATH_FILENAME}")
 
     def pose_callback(self, msg):
         self.is_pose_received = True
@@ -83,7 +77,7 @@ class Vehicle1Driver(Node):
         if not self.is_pose_received or len(self.path_x) == 0:
             return
 
-        # 1. 내 위치에서 가장 가까운 경로점 찾기 (CTE 계산용)
+        # 1. 내 위치에서 가장 가까운 경로점
         min_dist = float('inf')
         current_idx = 0
         for i in range(len(self.path_x)):
@@ -92,7 +86,7 @@ class Vehicle1Driver(Node):
                 min_dist = dist
                 current_idx = i
 
-        # 2. Look Ahead Point 찾기
+        # 2. Look Ahead Point
         target_idx = current_idx
         for i in range(current_idx, len(self.path_x)):
             dist = math.hypot(self.path_x[i] - self.current_x, self.path_y[i] - self.current_y)
@@ -119,10 +113,10 @@ class Vehicle1Driver(Node):
         i = Ki * self.integral_error
         d = Kd * (yaw_err - self.prev_error) / self.dt 
         
-        # [CTE Boost] 경로 이탈 시 핸들 강하게 보정
+        # [CTE]
         cte_correction = min_dist * K_cte  
         
-        # 방향 결정 (yaw_err 부호와 맞춤 - 간단한 휴리스틱)
+        # 방향 결정
         if yaw_err < 0: 
             cte_correction = -cte_correction 
         
@@ -138,9 +132,9 @@ class Vehicle1Driver(Node):
         cmd.angular.z = final_steering
         self.accel_publisher.publish(cmd)
         
-	# [디버깅용 로그 출력 코드]  
+	# 디버깅용
         self.log_counter += 1
-        if self.log_counter % 5 == 0:  # 5번에 한 번씩 출력 (자주 확인)
+        if self.log_counter % 5 == 0:
             print(f"[{current_idx}] "
                   f"Err(거리):{min_dist:.3f}m | "
                   f"YawErr(각도):{math.degrees(yaw_err):.1f}° | "
