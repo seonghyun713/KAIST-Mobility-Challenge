@@ -75,11 +75,11 @@ DIST_CENTER_TO_REAR = WHEELBASE / 2.0
 Kp, Ki, Kd = 6.0, 0.055, 1.0
 K_cte = 5.0  
 
-# Guardian과 Driver 간 통신용 전역 변수 (간소화된 아키텍처)
+# Guardian과 Driver 간 통신용 전역 변수
 GUARDIAN_LIMITS = {1: 99.0, 2: 99.0}
 
 # ============================================================
-# [CODE A] Driver (Yaw 계산 단순화 적용)
+# [CODE A] Driver
 # ============================================================
 class ZonePriorityDriver(Node):
     def __init__(self, vehicle_id: int):
@@ -112,7 +112,7 @@ class ZonePriorityDriver(Node):
     def pose_callback(self, msg):
         self.is_pose_received = True
         
-        # [수정됨] 명세서에 따라 orientation.z가 Yaw임 (복잡한 계산 삭제)
+        # Yaw 계산 (orientation.z가 Yaw임)
         raw_yaw = msg.pose.orientation.z
         
         # 좌표 보정 (중심 -> 뒷바퀴)
@@ -141,7 +141,7 @@ class ZonePriorityDriver(Node):
                 target_idx = i; break
         tx, ty = self.path_x[target_idx], self.path_y[target_idx]
 
-        # 속도 결정 (Guardian 우선)
+        # 속도 결정
         driver_velocity = TARGET_VELOCITY
         guardian_limit = GUARDIAN_LIMITS.get(self.vehicle_id, 99.0)
         final_velocity = min(driver_velocity, guardian_limit)
@@ -174,7 +174,7 @@ class ZonePriorityDriver(Node):
             print(f"[Car{self.vehicle_id}] {status_msg} | V:{final_velocity:.2f}")
 
 # ============================================================
-# [CODE B] Guardian (Right + Upper + Rotary)
+# [CODE B] Guardian (파라미터 수정됨)
 # ============================================================
 class UpperRightCollisionGuardianSplitDZ(Node):
     def __init__(self):
@@ -184,14 +184,19 @@ class UpperRightCollisionGuardianSplitDZ(Node):
         self.DZ_RIGHT = "right_1_2.csv"
         self.DZ_UPPER_V1 = "upper_dz_v1.csv"
         self.DZ_UPPER_V2 = "upper_dz_v2.csv"
-        self.DZ_ROTARY_V1 = "path1_1_rotary.csv" # 사용자 요청 파일
-        self.DZ_ZONE_V2   = "path1_2_zone.csv"   # 사용자 요청 파일
+        self.DZ_ROTARY_V1 = "path1_1_rotary.csv"
+        self.DZ_ZONE_V2   = "path1_2_zone.csv"
 
-        # 파라미터
-        self.NEAR_TOL_RIGHT, self.SAFETY_DIST_RIGHT = 0.40, 1.50
-        self.NEAR_TOL_UPPER, self.SAFETY_DIST_UPPER = 0.80, 1.50
+        # [수정된 파라미터]
+        # 1. Right: 반경 0.3m, 거리 1.2m
+        self.NEAR_TOL_RIGHT, self.SAFETY_DIST_RIGHT = 0.30, 1.00
+        
+        # 2. Upper: 반경 0.6m, 거리 1.2m
+        self.NEAR_TOL_UPPER, self.SAFETY_DIST_UPPER = 0.30, 1.00
         self.UPPER_RELEASE_DIST = 2.20
-        self.NEAR_TOL_ROTARY = 0.40 
+        
+        # 3. Rotary: 반경 0.3m
+        self.NEAR_TOL_ROTARY = 0.30 
 
         self.ACCEL_YIELD, self.ACCEL_RESUME = 0.10, 0.05
         self.MIN_ACCEL, self.TICK, self.RAMP_PER_SEC = 0.0, 0.05, 0.35
@@ -232,7 +237,7 @@ class UpperRightCollisionGuardianSplitDZ(Node):
         self.RESUME_PULSE_TICKS = int(1.5 / self.TICK)
         
         self.create_timer(self.TICK, self.tick)
-        print("✅ Guardian Running (All Zones Active)")
+        print("✅ Guardian Running (Modified Parameters)")
 
     def cb1(self, msg): self.p1 = (msg.pose.position.x, msg.pose.position.y)
     def cb2(self, msg): self.p2 = (msg.pose.position.x, msg.pose.position.y)
@@ -323,7 +328,7 @@ class UpperRightCollisionGuardianSplitDZ(Node):
                 if self.target_accel[vid] == self.ACCEL_YIELD and self.resume_ticks_left[vid] == 0 and not self.upper_lock_yield_id:
                     self._start_resume_pulse(vid)
 
-        # [Logic 3] ROTARY (님이 원하신 기능)
+        # [Logic 3] ROTARY
         if self.dz_rotary_v1 and self.dz_zone_v2:
             in_rotary = min_dist_to_points(x1, y1, self.dz_rotary_v1) <= self.NEAR_TOL_ROTARY
             in_zone   = min_dist_to_points(x2, y2, self.dz_zone_v2)   <= self.NEAR_TOL_ROTARY
