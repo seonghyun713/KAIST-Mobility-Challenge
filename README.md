@@ -22,20 +22,9 @@ stable, safe, and efficient autonomous driving behavior in complex scenarios.
 ---
 
 ## Simulator Platform
-This project is built on top of the official **KAIST Mobility Challenge Simulator**,
-which provides a ROS 2–based multi-vehicle simulation environment.
+This project is built on top of the official KAIST Mobility Challenge Simulator.
 
-- **Simulator Repository**:  
-  https://github.com/cislab-kaist/Mobility_Challenge_Simulator
-
-The simulator provides:
-- A realistic traffic scenario with multiple human-driven vehicles (HVs) and CAVs
-- Vehicle state topics (pose, velocity, acceleration)
-- Predefined road networks and reference paths
-- An interface for publishing control commands
-
-Our repository focuses on implementing the **control and decision-making logic**
-on top of this simulator framework.
+[![Simulator Repository](https://img.shields.io/badge/GitHub-Mobility_Challenge_Simulator-black?logo=github)](https://github.com/cislab-kaist/Mobility_Challenge_Simulator)
 
 ---
 
