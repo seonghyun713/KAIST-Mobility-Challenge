@@ -7,44 +7,52 @@ import os
 import math
 from geometry_msgs.msg import Accel, PoseStamped
 
-# ============================================================
+
 # [설정]
-# ============================================================
 VEHICLE_ID = 1
 PATH_FILENAME = 'path1_1.json'
 VEHICLE_TOPIC_NAME = '/CAV_01'
 
-print(f"\n [차량 {VEHICLE_ID}] 지도 기반 예지 주행 (Map Prediction)")
-print(f"   - 방식: 핸들 흔들림 무시, 도로 형상 직접 분석")
-print(f"   - 목표: 직진 구간 1.8m/s ")
+print(f"\n [차량 {VEHICLE_ID}] 3단 변속 모드 적용")
+print(f"   - STRGT: 1.8 m/s")
+print(f"   - EASY: 0.7 m/s")
+print(f"   - HARD: 0.5 m/s")
 
-# ============================================================
-# [파라미터 세트]
-# ============================================================
-CURVE_PARAMS = {
-    "vel": 0.58,
-    "look_ahead": 0.38,
-    "kp": 6.3,    
-    "ki": 0.05,
+# 1. 급커브 (Hard Curve)
+HARD_PARAMS = {
+    "vel": 0.5,      
+    "look_ahead": 0.37,
+    "kp": 6.5,         
+    "ki": 0.045,
     "kd": 1.0,
     "k_cte": 5.0
 }
 
-# 직진: 흔들림을 잡기 위해 Kp는 낮추고 Kd(댐핑)는 높임
+# 2. 완만한 커브 (Easy Curve)
+EASY_PARAMS = {
+    "vel": 0.8,     
+    "look_ahead": 0.39, 
+    "kp": 6.0,         
+    "ki": 0.05,
+    "kd": 1.0,          
+    "k_cte": 4.0
+}
+
+# 3. 직진 (Straight)
 STRAIGHT_PARAMS = {
-    "vel": 1.8,         # 목표 속도
-    "look_ahead": 0.47,  # 멀리 봄
-    "kp": 4.0,          # 핸들을 부드럽게 (진동 방지)
-    "ki": 0.005,         # I항 제거
-    "kd": 1.5,          # 댐핑 극대화 (핸들 고정)
-    "k_cte": 0.8        # 복귀 천천히
+    "vel": 1.8,        
+    "look_ahead": 0.5,  
+    "kp": 4.0,          
+    "ki": 0.005,
+    "kd": 2.0,        
+    "k_cte": 1.0
 }
 
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
 TICK_RATE = 0.05
 
-ACCEL_LIMIT = 0.8
+ACCEL_LIMIT = 3.0
 DECEL_LIMIT = 3.0
 
 class Vehicle1Driver(Node):
@@ -84,9 +92,10 @@ class Vehicle1Driver(Node):
         self.int_err = 0.0
         self.last_time = self.get_clock().now()
         
-        self.current_vel_cmd = 0.48
-        self.mode = "CURVE"          
-        
+        self.current_vel_cmd = 0.5
+        self.mode = "HARD" # 안전하게 시작
+        self.avg_steer_signed = 0.0 
+
         self.log_counter = 0
         self.create_timer(TICK_RATE, self.drive_loop)
 
@@ -96,34 +105,6 @@ class Vehicle1Driver(Node):
         self.curr_x = msg.pose.position.x - (DIST_CENTER_TO_REAR * math.cos(self.curr_yaw))
         self.curr_y = msg.pose.position.y - (DIST_CENTER_TO_REAR * math.sin(self.curr_yaw))
 
-    def get_road_curvature(self, current_idx):
-        # [핵심 로직] 도로 형상 분석
-        # 현재 위치에서 약 10포인트(약 0.5~1m) 앞과 
-        # 거기서 10포인트 더 앞의 각도를 비교
-        
-        idx_now = current_idx
-        idx_near = min(len(self.path_x) - 1, current_idx + 50)
-        idx_far  = min(len(self.path_x) - 1, current_idx + 100)
-
-        if idx_near == idx_far: return 0.0 # 끝부분
-
-        # 1. 가까운 도로 벡터
-        dx1 = self.path_x[idx_near] - self.path_x[idx_now]
-        dy1 = self.path_y[idx_near] - self.path_y[idx_now]
-        angle1 = math.atan2(dy1, dx1)
-
-        # 2. 먼 도로 벡터
-        dx2 = self.path_x[idx_far] - self.path_x[idx_near]
-        dy2 = self.path_y[idx_far] - self.path_y[idx_near]
-        angle2 = math.atan2(dy2, dx2)
-
-        # 3. 각도 차이 (도로가 얼마나 휘었는가?)
-        diff = abs(angle1 - angle2)
-        while diff > math.pi: diff -= 2 * math.pi
-        while diff < -math.pi: diff += 2 * math.pi
-        
-        return abs(diff)
-
     def drive_loop(self):
         if not self.got_pose or not self.path_pts: return
 
@@ -132,43 +113,25 @@ class Vehicle1Driver(Node):
         self.last_time = now
         if dt <= 0.001 or dt > 0.1: return
 
-        # --------------------------------------------------------
-        # [Step 1] 가장 가까운 경로점 찾기
-        # --------------------------------------------------------
+        # [Step 1] 현재 모드에 따른 파라미터 선택
+        if self.mode == "HARD":
+            params = HARD_PARAMS
+        elif self.mode == "EASY":
+            params = EASY_PARAMS
+        else: # STRGT
+            params = STRAIGHT_PARAMS
+
+        # [Step 2] Pure Pursuit & PID
         min_d = float('inf')
         curr_idx = 0
         for i, (px, py) in enumerate(zip(self.path_x, self.path_y)):
             d = math.hypot(px - self.curr_x, py - self.curr_y)
-            if d < min_d:
-                min_d = d
-                curr_idx = i
+            if d < min_d: min_d = d; curr_idx = i
 
-        # --------------------------------------------------------
-        # [Step 2] 모드 결정 (지도 기반) - 여기가 바뀜!
-        # --------------------------------------------------------
-        road_curve_amount = self.get_road_curvature(curr_idx)
-
-        # 도로가 거의 일직선(0.15 rad 약 8도 이하)이면 직진 모드
-        # 단, 경로 이탈(min_d)이 0.4m 이상이면 안전을 위해 커브 모드(감속)
-        if road_curve_amount < 0.15 and min_d < 0.4:
-            self.mode = "STRGT"
-        else:
-            self.mode = "CURVE"
-
-        if self.mode == "STRGT":
-            params = STRAIGHT_PARAMS
-        else:
-            params = CURVE_PARAMS
-
-        # --------------------------------------------------------
-        # [Step 3] PID 제어
-        # --------------------------------------------------------
         target_idx = curr_idx
         for i in range(curr_idx, len(self.path_x)):
             d = math.hypot(self.path_x[i] - self.curr_x, self.path_y[i] - self.curr_y)
-            if d >= params["look_ahead"]: 
-                target_idx = i
-                break
+            if d >= params["look_ahead"]: target_idx = i; break
         
         tx, ty = self.path_x[target_idx], self.path_y[target_idx]
         desired_yaw = math.atan2(ty - self.curr_y, tx - self.curr_x)
@@ -178,7 +141,6 @@ class Vehicle1Driver(Node):
         while yaw_err < -math.pi: yaw_err += 2 * math.pi
 
         self.int_err = max(-1.0, min(1.0, self.int_err + yaw_err * dt))
-        
         p = params["kp"] * yaw_err
         i_term = params["ki"] * self.int_err
         d = params["kd"] * (yaw_err - self.prev_err) / dt
@@ -188,11 +150,38 @@ class Vehicle1Driver(Node):
         final_steer = max(-1.0, min(1.0, raw_steer))
         self.prev_err = yaw_err
 
-        # --------------------------------------------------------
-        # [Step 4] 속도 결정 및 발행
-        # --------------------------------------------------------
-        target_v = params["vel"] # 모드에 따라 1.8 or 0.48
+        # [Step 3] 모드 전환 로직 (히스테리시스)
+        self.avg_steer_signed = 0.85 * self.avg_steer_signed + 0.15 * final_steer
+        filter_val = abs(self.avg_steer_signed)
+        if abs(final_steer) > 0.90:
+            self.mode = "HARD"
+            # 필터값 조정 (모드 유지용)
+            if final_steer > 0: self.avg_steer_signed = 0.7 
+            else: self.avg_steer_signed = -0.7
+        else:
+            if self.mode == "STRGT":
+                if filter_val > 0.30:
+                    self.mode = "EASY"
+            
+            elif self.mode == "EASY":
+                if filter_val < 0.15:       
+                    self.mode = "STRGT"
+                elif filter_val > 0.80:     
+                    self.mode = "HARD"
+            
+            elif self.mode == "HARD":
+                if filter_val < 0.70:       
+                    self.mode = "EASY"
 
+        # [Step 4] 결정된 모드에 맞는 속도 설정
+        if self.mode == "HARD":
+            target_v = HARD_PARAMS["vel"]
+        elif self.mode == "EASY":
+            target_v = EASY_PARAMS["vel"]
+        else:
+            target_v = STRAIGHT_PARAMS["vel"]
+
+        # [Step 5] 속도 제어 및 발행
         if target_v > self.current_vel_cmd:
             self.current_vel_cmd = min(target_v, self.current_vel_cmd + ACCEL_LIMIT * dt)
         else:
@@ -204,9 +193,30 @@ class Vehicle1Driver(Node):
         self.accel_publisher.publish(cmd)
 
         self.log_counter += 1
-        if self.log_counter % 20 == 0:
-            # RoadCurve가 0에 가까워야 직진입니다
-            print(f"[{self.mode}] Vel:{self.current_vel_cmd:.2f} | RoadCurve:{road_curve_amount:.3f} | DistErr:{min_d:.3f}")
+
+        # [Debugging] 로직 값 기반 모니터링
+        self.log_counter += 1
+        
+        # Terminal 출력
+        if self.log_counter % 5 == 0:
+            bar_len = 10 
+            fill = int(abs(final_steer) * bar_len) 
+            fill = min(fill, bar_len)
+            
+            if final_steer < 0: # 왼쪽
+                bar_str = " " * (bar_len - fill) + "<" * fill + "|" + " " * bar_len
+                dir_str = "LFT" # Left
+            else: # 오른쪽
+                bar_str = " " * bar_len + "|" + ">" * fill + " " * (bar_len - fill)
+                dir_str = "RGT"
+
+            # 최종 출력
+            # [모드] 속도 | 방향 | Filter(평균) | Raw(순간) | 막대그래프
+            print(f"[{self.mode}] {self.current_vel_cmd:.1f}m/s | "
+                  f"{dir_str} | "
+                  f"Filter:{filter_val:.3f} | " 
+                  f"Raw:{abs(final_steer):.3f} | " 
+                  f"[{bar_str}]")
 
 def main(args=None):
     rclpy.init(args=args)
