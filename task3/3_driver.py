@@ -54,7 +54,7 @@ class MapPredictionDriver(Node):
         super().__init__(f'driver_vehicle_{vehicle_id}')
         self.vehicle_id = int(vehicle_id)
 
-        self.PATH_FILENAME = f'path1_{self.vehicle_id}.json'   # ✅ 차량별 경로
+        self.PATH_FILENAME = f'path3_{self.vehicle_id}.json'   # ✅ 차량별 경로
         self.VEHICLE_TOPIC_NAME = f'/CAV_{self.vehicle_id:02d}' # ✅ 차량별 토픽
 
         print(f"\n [차량 {self.vehicle_id}] 지도 기반 예지 주행 (Map Prediction)")
