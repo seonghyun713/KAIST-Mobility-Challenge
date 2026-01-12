@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+import os
+import csv
+import math
+import json
+
+import rclpy
+from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from geometry_msgs.msg import PoseStamped, Accel
+
+# ============================================================
+# [IO helpers]
+# ============================================================
+def load_path_points(json_file: str):
+    if not os.path.exists(json_file):
+        return []
+    with open(json_file, "r") as f:
+        data = json.load(f)
+    xs = data.get("x") or data.get("X")
+    ys = data.get("y") or data.get("Y")
+    if not xs or not ys:
+        return []
+    return [(float(x), float(y)) for x, y in zip(xs, ys)]
+
+# ============================================================
+# [Global Settings]
+# ============================================================
+TARGET_VELOCITY = 0.7
+LOOK_AHEAD_DISTANCE = 0.55
+WHEELBASE = 0.211
+DIST_CENTER_TO_REAR = WHEELBASE / 2.0
+
+Kp, Ki, Kd = 4.0, 0.055, 1.0
+K_cte = 3.0
+
+# ============================================================
+# [Driver Class] (4대 차량 인스턴스화 가능)
+# ============================================================
+class ZonePriorityDriver(Node):
+    def __init__(self, vehicle_id: int):
+        super().__init__(f'zone_driver_{vehicle_id}')
+        self.vehicle_id = int(vehicle_id)
+        self.MY_TOPIC = f'/CAV_{self.vehicle_id:02d}'
+        self.MY_PATH_FILE = f'path3_{self.vehicle_id}.json' # 문제 3 경로 파일명에 맞춤
+
+        qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
+                         history=HistoryPolicy.KEEP_LAST, depth=10)
+
+        self.accel_raw_pub = self.create_publisher(Accel, f'{self.MY_TOPIC}_accel_raw', 10)
+        self.create_subscription(PoseStamped, self.MY_TOPIC, self.pose_callback, qos)
+
+        self.path_points = load_path_points(self.MY_PATH_FILE)
+        self.path_x = [p[0] for p in self.path_points]
+        self.path_y = [p[1] for p in self.path_points]
+
+        self.current_x, self.current_y, self.current_yaw = 0.0, 0.0, 0.0
+        self.is_pose_received = False
+        self.prev_error = 0.0
+        self.integral_error = 0.0
+        self.last_time = self.get_clock().now()
+
+        self.create_timer(0.05, self.drive_callback)
+
+    def pose_callback(self, msg):
+        self.is_pose_received = True
+        self.current_yaw = msg.pose.orientation.z
+        self.current_x = msg.pose.position.x - (DIST_CENTER_TO_REAR * math.cos(self.current_yaw))
+        self.current_y = msg.pose.position.y - (DIST_CENTER_TO_REAR * math.sin(self.current_yaw))
+
+    def drive_callback(self):
+        if not self.is_pose_received or not self.path_x: return
+        now = self.get_clock().now()
+        dt = max(0.001, min(0.1, (now - self.last_time).nanoseconds / 1e9))
+        self.last_time = now
+
+        min_dist, current_idx = float('inf'), 0
+        for i, (px, py) in enumerate(zip(self.path_x, self.path_y)):
+            d = math.hypot(px - self.current_x, py - self.current_y)
+            if d < min_dist: min_dist, current_idx = d, i
+
+        target_idx = current_idx
+        for i in range(current_idx, len(self.path_x)):
+            if math.hypot(self.path_x[i]-self.current_x, self.path_y[i]-self.current_y) >= LOOK_AHEAD_DISTANCE:
+                target_idx = i; break
+        tx, ty = self.path_x[target_idx], self.path_y[target_idx]
+
+        desired_yaw = math.atan2(ty - self.current_y, tx - self.current_x)
+        yaw_err = desired_yaw - self.current_yaw
+        while yaw_err > math.pi: yaw_err -= 2*math.pi
+        while yaw_err < -math.pi: yaw_err += 2*math.pi
+
+        self.integral_error = max(-1.0, min(1.0, self.integral_error + yaw_err*dt))
+        p, i, d = Kp * yaw_err, Ki * self.integral_error, Kd * (yaw_err - self.prev_error) / dt
+        cte = min_dist * K_cte * (-1 if yaw_err < 0 else 1)
+        steer = max(-1.0, min(1.0, p + i + d + cte))
+        self.prev_error = yaw_err
+
+        cmd = Accel()
+        cmd.linear.x = float(TARGET_VELOCITY)
+        cmd.angular.z = float(steer)
+        self.accel_raw_pub.publish(cmd)
+
+# ============================================================
+# [4-Vehicle Guardian Mux]
+# ============================================================
+class Problem3GuardianMux(Node):
+    def __init__(self):
+        super().__init__("problem3_guardian_mux")
+        qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
+
+        self.VEH_IDS = [1, 2, 3, 4]
+        self.poses = {vid: None for vid in self.VEH_IDS}
+        self.raw_accels = {vid: Accel() for vid in self.VEH_IDS}
+        self.cmd_speed = {vid: 99.0 for vid in self.VEH_IDS}
+        self.last_pose = {vid: None for vid in self.VEH_IDS}
+        self.v_est = {vid: TARGET_VELOCITY for vid in self.VEH_IDS}
+
+        # Subscriptions
+        for vid in self.VEH_IDS:
+            topic = f"/CAV_{vid:02d}"
+            self.create_subscription(PoseStamped, topic, self._make_pose_cb(vid), qos)
+            self.create_subscription(Accel, f"{topic}_accel_raw", self._make_raw_cb(vid), 10)
+
+        # Publishers
+        self.pubs = {vid: self.create_publisher(Accel, f"/CAV_{vid:02d}_accel", 10) for vid in self.VEH_IDS}
+
+        # Intersection Params (사지교차로 TOP/BOT 듀얼 센터)
+        self.TOP_CENTER = (-2.3351, 2.307)
+        self.BOT_CENTER = (-2.3351, -2.307)
+        self.RADIUS, self.D_SAFE, self.D_CLEAR = 1.3, 1.5, 1.2
+        self.RAMP_PER_SEC, self.TICK = 0.8, 0.05
+
+        self.create_timer(self.TICK, self.tick)
+
+    def _make_pose_cb(self, vid):
+        return lambda msg: self._update_pose(vid, msg)
+
+    def _update_pose(self, vid, msg):
+        curr_p = (msg.pose.position.x, msg.pose.position.y)
+        if self.last_pose[vid]:
+            d = math.hypot(curr_p[0]-self.last_pose[vid][0], curr_p[1]-self.last_pose[vid][1])
+            self.v_est[vid] = 0.3*(d/self.TICK) + 0.7*self.v_est[vid]
+        self.last_pose[vid], self.poses[vid] = curr_p, curr_p
+
+    def _make_raw_cb(self, vid):
+        return lambda msg: self.raw_accels.update({vid: msg})
+
+    def _apply_ramp(self, vid, tgt_v):
+        cur = self.cmd_speed[vid] if self.cmd_speed[vid] < 50 else TARGET_VELOCITY
+        step = self.RAMP_PER_SEC * self.TICK
+        if tgt_v > cur: cur = min(tgt_v, cur + step)
+        else: cur = max(tgt_v, cur - step)
+        self.cmd_speed[vid] = max(0.1, cur)
+
+    def tick(self):
+        if any(p is None for p in self.poses.values()): return
+
+        # 모든 차량에 대해 일단 TARGET_VELOCITY로 초기화
+        final_targets = {vid: TARGET_VELOCITY for vid in self.VEH_IDS}
+
+        # 충돌 로직: 모든 차량 쌍(Pair)에 대해 거리 체크
+        for i in range(len(self.VEH_IDS)):
+            for j in range(i + 1, len(self.VEH_IDS)):
+                id1, id2 = self.VEH_IDS[i], self.VEH_IDS[j]
+                p1, p2 = self.poses[id1], self.poses[id2]
+                dist = math.hypot(p1[0]-p2[0], p1[1]-p2[1])
+
+                if dist < self.D_SAFE:
+                    # 더 멀리 있는(TTC가 큰) 차량이 양보
+                    if dist < self.D_CLEAR:
+                        # 긴급 상황: 거리에 비례하여 속도 급감
+                        yield_v = TARGET_VELOCITY * (dist / self.D_SAFE)
+                        # 여기서는 단순하게 ID가 큰 차가 양보하도록 설정 (필요시 TTC 로직 적용)
+                        final_targets[max(id1, id2)] = min(final_targets[max(id1, id2)], yield_v)
+
+        # 최종 속도 적용 및 발행
+        for vid in self.VEH_IDS:
+            self._apply_ramp(vid, final_targets[vid])
+            out = Accel()
+            out.linear.x = min(float(self.raw_accels[vid].linear.x), self.cmd_speed[vid])
+            out.angular.z = self.raw_accels[vid].angular.z
+            self.pubs[vid].publish(out)
+
+# ============================================================
+# Main
+# ============================================================
+def main():
+    rclpy.init()
+    nodes = [ZonePriorityDriver(i) for i in range(1, 5)]
+    nodes.append(Problem3GuardianMux())
+    
+    executor = MultiThreadedExecutor(num_threads=8)
+    for node in nodes: executor.add_node(node)
+    
+    try: executor.spin()
+    except KeyboardInterrupt: pass
+    finally:
+        for node in nodes: node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()
