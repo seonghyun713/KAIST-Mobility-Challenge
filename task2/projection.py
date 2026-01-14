@@ -8,12 +8,12 @@ from geometry_msgs.msg import PoseStamped, Accel
 
 ########### Constants
 PATH_FILES = [
-    '/home/dongminkim/Desktop/Mobility_Challenge_Simulator/src/central_control/path/path_2_1.json',
-    '/home/dongminkim/Desktop/Mobility_Challenge_Simulator/src/central_control/path/path_2_2.json',
-    '/home/dongminkim/Desktop/Mobility_Challenge_Simulator/src/central_control/path/path_2_3.json',
-    '/home/dongminkim/Desktop/Mobility_Challenge_Simulator/src/central_control/path/path_2_4.json',
-    '/home/dongminkim/Desktop/Mobility_Challenge_Simulator/src/central_control/path/not_lane_change.json',
-    '/home/dongminkim/Desktop/Mobility_Challenge_Simulator/src/central_control/path/lane_change.json',
+    '/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task2/paths/path_2_1.json',
+    '/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task2/paths/path_2_2.json',
+    '/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task2/paths/path_2_3.json',
+    '/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task2/paths/path_2_4.json',
+    '/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task2/paths/not_lane_change.json',
+    '/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task2/paths/lane_change.json',
 ]
 LANE_COUNT = 4  # IMPORTANT: project onto all 4 lanes
 
