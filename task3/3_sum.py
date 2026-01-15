@@ -575,7 +575,7 @@ class Problem3DualZoneGuardianMux(Node):
            # [FOUR-WAY] effective in-zone set (active AND approaching)
            # ============================================================
         fw_in_eff = [
-            id for vid in self.VEH_IDS
+            vid for vid in self.VEH_IDS
             if (self.pose[vid] is not None)
             and self.fw["active"][vid]
             and self.fw["approaching"][vid]
@@ -624,7 +624,8 @@ class Problem3DualZoneGuardianMux(Node):
             for i, vid in enumerate(fw_targets_sorted):
                 desired = speeds[min(i, len(speeds) - 1)]
                 # raw보다 작은 속도 제한만 의미 있으므로 limit로 적용
-                fw_limits[vid] = desired
+                fw_limits[vid] = desired if desired < self.FW_V_NOM else None
+
 
 
 
