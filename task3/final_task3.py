@@ -343,32 +343,63 @@ class Problem3DualZoneGuardianMux(Node):
         self.create_subscription(PoseStamped, "/HV_19", self._cb_hv19, qos)
         self.create_subscription(PoseStamped, "/HV_20", self._cb_hv20, qos)
 
-        # per-vehicle safety config (너가 올린 cars_config 그대로)
+        # # per-vehicle safety config (너가 올린 cars_config 그대로)
+        # self.safety_cfg = {
+        #     1: {
+        #         "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_1_zone.csv"),
+        #         "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_3_1.csv"),
+        #         "out_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_1_out_zone.csv"),
+        #         "danger_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_3_2.csv"),
+        #         "stop_logic_disabled": False,
+        #     },
+        #     2: {
+        #         "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_2_zone.csv"),
+        #         "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_2_1.csv"),
+        #         "out_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_2_out_zone.csv"),
+        #         "danger_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_2_2.csv"),
+        #         "stop_logic_disabled": False,
+        #     },
+        #     3: {
+        #         "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_3_zone.csv"),
+        #         "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_2_1.csv"),
+        #         "out_zone": [],
+        #         "danger_zone": [],
+        #         "stop_logic_disabled": False,
+        #     },
+        #     4: {
+        #         "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_4_zone.csv"),
+        #         "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_3_1.csv"),
+        #         "out_zone": [],
+        #         "danger_zone": [],
+        #         "stop_logic_disabled": False,
+        #     },
+        # }
+
         self.safety_cfg = {
             1: {
-                "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_1_zone.csv"),
-                "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_3_1.csv"),
-                "out_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_1_out_zone.csv"),
-                "danger_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_3_2.csv"),
+                "start_zone": load_zone_from_csv("path3_1_zone.csv"),
+                "start_trigger": load_zone_from_csv("path_hv_3_1.csv"),
+                "out_zone": load_zone_from_csv("path3_1_out_zone.csv"),
+                "danger_zone": load_zone_from_csv("path_hv_3_2.csv"),
                 "stop_logic_disabled": False,
             },
             2: {
-                "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_2_zone.csv"),
-                "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_2_1.csv"),
-                "out_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_2_out_zone.csv"),
-                "danger_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_2_2.csv"),
+                "start_zone": load_zone_from_csv("path3_2_zone.csv"),
+                "start_trigger": load_zone_from_csv("path_hv_2_1.csv"),
+                "out_zone": load_zone_from_csv("path3_2_out_zone.csv"),
+                "danger_zone": load_zone_from_csv("path_hv_2_2.csv"),
                 "stop_logic_disabled": False,
             },
             3: {
-                "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_3_zone.csv"),
-                "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_2_1.csv"),
+                "start_zone": load_zone_from_csv("path3_3_zone.csv"),
+                "start_trigger": load_zone_from_csv("path_hv_2_1.csv"),
                 "out_zone": [],
                 "danger_zone": [],
                 "stop_logic_disabled": False,
             },
             4: {
-                "start_zone": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_4_zone.csv"),
-                "start_trigger": load_zone_from_csv("/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path_hv_3_1.csv"),
+                "start_zone": load_zone_from_csv("path3_4_zone.csv"),
+                "start_trigger": load_zone_from_csv("path_hv_3_1.csv"),
                 "out_zone": [],
                 "danger_zone": [],
                 "stop_logic_disabled": False,
@@ -794,7 +825,8 @@ def main(args=None):
     rclpy.init(args=args)
 
     drivers = [
-        MapPredictionDriver(i, f"/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_{i}.json")
+        MapPredictionDriver(i, f"path3_{i}.json")
+        # MapPredictionDriver(i, f"/home/dongminkim/Desktop/KAIST-Mobility-Challenge-H6/task3/path/path3_{i}.json")
         for i in range(1, 5)
     ]
 
