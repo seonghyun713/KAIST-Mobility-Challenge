@@ -1,5 +1,10 @@
 from launch import LaunchDescription
+from launch.actions import ExecuteProcess
 
 def generate_launch_description():
-    # TODO (TEAM): 여기에 실행할 노드/런치를 추가하세요.
-    return LaunchDescription([])
+    return LaunchDescription([
+        ExecuteProcess(
+            cmd=["python3", "/ws/src/pkg_task_1_1/src/task1_1.py"],
+            output="screen"
+        )
+    ])
