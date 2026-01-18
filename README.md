@@ -20,10 +20,86 @@ This project is built on the official KAIST Mobility Challenge Simulator.
 
 ---
 
-## What We Implement
-- Vehicle state subscription and trajectory following
-- Real-time acceleration and steering control
-- Modular control logic for extensibility
+## How to Run
+### 0. Prerequisites
+Docker installed
+Linux (Ubuntu 20.04 recommended)
+X11 available (for simulator GUI)
+
+### 1. Run Simulator (GUI)
+- **task1-1**: L+1
+- **task1-2**: L+2
+- **task2**: L+3
+- **task3**: L+4
+
+```bash
+xhost +local:docker
+
+docker run --rm -it \
+  --net=host \
+  --ipc=host \
+  -e RUN_MODE=sim \
+  -e ROS_DOMAIN_ID=100 \
+  -e ROS_LOCALHOST_ONLY=0 \
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  -e DISPLAY=$DISPLAY \
+  -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+  --device /dev/dri \
+  h6
+```
+
+### 2. Run Algorithms (in a Separate Terminal)
+**Problem 1-1**
+```bash
+docker run --rm -it \
+  --net=host \
+  --ipc=host \
+  -e RUN_MODE=algorithm \
+  -e PROBLEM_ID=1 \
+  -e ROS_DOMAIN_ID=100 \
+  -e ROS_LOCALHOST_ONLY=0 \
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  h6
+```
+
+**Problem 1-2**
+```bash
+docker run --rm -it \
+  --net=host \
+  --ipc=host \
+  -e RUN_MODE=algorithm \
+  -e PROBLEM_ID=2 \
+  -e ROS_DOMAIN_ID=100 \
+  -e ROS_LOCALHOST_ONLY=0 \
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  h6
+```
+
+**Problem 2**
+```bash
+docker run --rm -it \
+  --net=host \
+  --ipc=host \
+  -e RUN_MODE=algorithm \
+  -e PROBLEM_ID=3 \
+  -e ROS_DOMAIN_ID=100 \
+  -e ROS_LOCALHOST_ONLY=0 \
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  h6
+```
+
+**Problem 3**
+```bash
+docker run --rm -it \
+  --net=host \
+  --ipc=host \
+  -e RUN_MODE=algorithm \
+  -e PROBLEM_ID=4 \
+  -e ROS_DOMAIN_ID=100 \
+  -e ROS_LOCALHOST_ONLY=0 \
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  h6
+```
 
 ---
 
