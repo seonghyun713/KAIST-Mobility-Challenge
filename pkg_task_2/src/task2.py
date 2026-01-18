@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Accel, PoseStamped
@@ -364,13 +366,16 @@ class MergeCorridorController(Node):
 
     # --- Control Loop ---
     def control_loop(self):
+
         if not self.is_ready:
             self.control_pub.publish(Accel())
             return
 
         idx = self.get_nearest_index()
         arr = self.path_arrs[self.curr_lane]
-
+        if len(arr) == 0:
+            self.control_pub.publish(Accel())
+            return
         # 1. Pure Pursuit Lookahead
         ld = np.clip(0.48 + 0.15 * self.spd, self.MIN_LOOKAHEAD, self.MAX_LOOKAHEAD)
         s_idx = idx

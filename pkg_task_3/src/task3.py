@@ -415,11 +415,11 @@ class Problem3DualZoneGuardianMux(Node):
         }
         # Defined Collision Pairs (Direction-based)
         self.FW_CASES = [
+            frozenset([(1, "N"), (2, "W"), (3, "E")]), frozenset([(1, "S"), (2, "E"), (4, "W")]),
             frozenset([(1, "N"), (2, "W")]), frozenset([(1, "N"), (2, "E")]),
             frozenset([(1, "N"), (3, "E")]), frozenset([(2, "W"), (3, "E")]),
             frozenset([(1, "S"), (2, "W")]), frozenset([(1, "S"), (2, "E")]),
-            frozenset([(1, "S"), (4, "W")]), frozenset([(2, "E"), (4, "W")]),
-            frozenset([(1, "N"), (2, "W"), (3, "E")]), frozenset([(1, "S"), (2, "E"), (4, "W")]),
+            frozenset([(1, "S"), (4, "W")]), frozenset([(2, "E"), (4, "W")])
         ]
 
         # Human Vehicle (HV) Safety Settings

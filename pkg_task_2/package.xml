@@ -2,16 +2,19 @@
 <package format="3">
   <name>pkg_task_2</name>
   <version>0.0.0</version>
-  <description>pkg_task_2 for KAIST Mobility Challenge</description>
+  <description>KMC Task 2</description>
 
-  <maintainer email="h6@team.local">H6 Team</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="team@kmc.com">TEAM_H6</maintainer>
+  <license>MIT</license>
 
-  <!-- build tool: 예시에서는 ament_cmake로 두고, 추후 필요에 따라 수정 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- runtime deps (추후 필요에 맞게 추가/수정) -->
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
