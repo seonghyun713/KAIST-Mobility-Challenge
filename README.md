@@ -28,12 +28,12 @@ This project is built on the official KAIST Mobility Challenge Simulator.
 
 **Extract**
 ```bash
-tar -xzf TEAM_H6.tar.gz
-cd TEAM_H6
+git clone https://github.com/kmin2426/KAIST-Mobility-Challenge-H6.git
 ```
 
 **Build Docker Image**
 ```bash
+cd ~/KAIST-Mobility-Challenge-H6
 docker build -t h6 .
 ```
 
