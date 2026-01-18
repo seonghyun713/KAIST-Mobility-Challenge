@@ -26,7 +26,7 @@ This project is built on the official KAIST Mobility Challenge Simulator.
 - Linux (Ubuntu 20.04 recommended)
 - X11 available (for simulator GUI)
 
-**Extract**
+**Clone**
 ```bash
 git clone https://github.com/kmin2426/KAIST-Mobility-Challenge-H6.git
 ```
