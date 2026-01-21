@@ -16,20 +16,14 @@
  `/cmd_vel`
 
 - CAV1 Jetson: `ROS_DOMAIN_ID=0`
-- CAV2 Jetson: `ROS_DOMAIN_ID=1`
-- CAV3 Jetson: `ROS_DOMAIN_ID=2`
-- CAV4 Jetson: `ROS_DOMAIN_ID=3`
+- CAV2 Jetson: `ROS_DOMAIN_ID=0`
+- CAV3 Jetson: `ROS_DOMAIN_ID=0`
+- CAV4 Jetson: `ROS_DOMAIN_ID=0`
 
 ```bash
+# 로컬pc
 ROS_DOMAIN_ID=0 python3 task3.py# CAV1 제어
-ROS_DOMAIN_ID=1 python3 task3.py# CAV2 제어
-ROS_DOMAIN_ID=2 python3 task3.py# CAV3 제어
-ROS_DOMAIN_ID=3 python3 task3.py# CAV4 제어
 ```
-
-근데 너 코드 그대로는 한 번에 4대를 다루는 구조라서,
-
-실차 도메인 방식이면 보통 **“1대용으로 쪼개서 실행”**하는 게 깔끔해.
 
 ### 1. SSH 연결
 
@@ -94,7 +88,7 @@ source /opt/ros/foxy/setup.bash
 ```
 #CAV 01 정지
 source /opt/ros/foxy/setup.bash
-ros2 topic pub --once /CAV_01/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0}, angular: {z: 0.0}}"
+ros2 topic pub --once /CAV_01/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
 **Domain ID 확인:**
