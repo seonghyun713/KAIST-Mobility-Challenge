@@ -1,4 +1,4 @@
-**아키텍처:**
+## 1. Architecture
 
 ```
 [노트북]
@@ -15,23 +15,14 @@
 
  `/cmd_vel`
 
-- CAV1 Jetson: `ROS_DOMAIN_ID=0`
-- CAV2 Jetson: `ROS_DOMAIN_ID=1`
-- CAV3 Jetson: `ROS_DOMAIN_ID=2`
-- CAV4 Jetson: `ROS_DOMAIN_ID=3`
+- CAV1 Jetson: `ROS_DOMAIN_ID=100`
+- CAV2 Jetson: `ROS_DOMAIN_ID=100`
+- CAV3 Jetson: `ROS_DOMAIN_ID=100`
+- CAV4 Jetson: `ROS_DOMAIN_ID=100`
 
-```bash
-ROS_DOMAIN_ID=0 python3 task3.py# CAV1 제어
-ROS_DOMAIN_ID=1 python3 task3.py# CAV2 제어
-ROS_DOMAIN_ID=2 python3 task3.py# CAV3 제어
-ROS_DOMAIN_ID=3 python3 task3.py# CAV4 제어
-```
+---
 
-근데 너 코드 그대로는 한 번에 4대를 다루는 구조라서,
-
-실차 도메인 방식이면 보통 **“1대용으로 쪼개서 실행”**하는 게 깔끔해.
-
-### 1. SSH 연결
+### 1-1. SSH 설정
 
 **초기 세팅:**
 
@@ -55,103 +46,145 @@ cd ~/Desktop/Dashboard
 ./KMC_Dashboard-x86_64.AppImage
 ```
 
-—-
+---
 
-### 2. 차량 초기 세팅
+## 2. 차량 초기 세팅
+
+- password: 1234
+
+Domain ID
+
+```
+# Domain_ID 확인
+env | grep ROS_DOMAIN_ID
+
+# Domain_ID 변경
+export ROS_DOMAIN_ID=100
+```
+
+Git clone
+
+```
+git clone https://github.com/Seo12044/KAIST_Mobility_Challenge_SDK.git
+```
+
+ROS2 Foxy:
 
 ```bash
-ls /opt/ros
+sudo apt update
+sudo apt install -y software-properties-common
+sudo add-apt-repository universe
 
 sudo apt update
-sudo apt install -y curl gnupg lsb-release
+sudo apt install -y curl ca-certificates gnupg lsb-release
 
 sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
   -o /usr/share/keyrings/ros-archive-keyring.gpg
 
-echo "deb [arch=arm64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-http://packages.ros.org/ros2/ubuntu$(lsb_release -cs) main" | \
-sudotee /etc/apt/sources.list.d/ros2.list
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+| sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+sudo apt update
+sudo apt install -y ros-foxy-ros-base python3-colcon-common-extensions python3-rosdep python3-argcomplete
+
+sudo rosdep init || true
+rosdep update
+
+echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
+source /opt/ros/foxy/setup.bash
 
 sudo apt update
 sudo apt install -y ros-foxy-ros-base
 
-#필수 패키지 설치
-sudo apt install -y \
-  ros-foxy-rclcpp \
-  ros-foxy-geometry-msgs \
-  ros-foxy-std-msgs
+```
 
+SDK 연결:
+
+```bash
+cd ~/KAIST_Mobility_Challenge_SDK
+mkdir -p src
+```
+
+Driver 패키지 링크: 
+
+```bash
+rm -rf src/kmc_hardware_driver_node
+ln -s ../examples/Driver_ROS2 src/kmc_hardware_driver_node
+```
+
+Build 및 확인
+
+```bash
 source /opt/ros/foxy/setup.bash
+cd ~/KAIST_Mobility_Challenge_SDK
+rm -rf build installlog
 
+colcon list --base-paths src
+colcon build --symlink-install --base-paths src --packages-select kmc_hardware_driver_node
+
+source install/setup.bash
+ros2 pkg executables kmc_hardware_driver_node
+```
+
+도메인 고정
+
+```bash
+export ROS_DOMAIN_ID=100
+source /opt/ros/foxy/setup.bash
+source ~/KAIST_Mobility_Challenge_SDK/install/setup.bash
+```
+
+포트 확인
+
+```bash
+ls -l /dev/ttyKMC /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+```
+
+**Driver 노드 실행**
+
+```bash
+ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
+  --ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_09/cmd_vel
+```
+
+- `/dev/ttyKMC` 없을경우:
+
+```bash
+ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
+  --ros-args -p port:=/dev/ttyUSB0 -r cmd_vel:=/CAV_09/cmd_vel
 ```
 
 ---
 
-### 3. 실행
+## 3. 차량 제어
 
-**정지코드(로컬 혹은 ssh):**
+### 3-1. 정지
 
-```
-#CAV 01 정지
+```bash
+export ROS_DOMAIN_ID=100
 source /opt/ros/foxy/setup.bash
-ros2 topic pub --once /CAV_01/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0}, angular: {z: 0.0}}"
+ros2 topic pub --once /CAV_09/cmd_vel geometry_msgs/msg/Twist \
+"{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-**Domain ID 확인:**
+### 3-2. Fake Pose
 
-```
-env | grep ROS_DOMAIN_ID
-```
-
-**Domain 변경: Domain ID 4대 동일하게 해야됨 무조건**
-
-```
-export ROS_DOMAIN_ID=0
-```
-
-**ssh 실행시켜야할 코드**: driver_read_allstate_node.cpp
-
-- **차량별 초기 pose를 쏴줘야 출발함**
-- **차량별 코드 CAV07:**
-
-```
-export ROS_DOMAIN_ID=0
+```bash
+export ROS_DOMAIN_ID=100
 source /opt/ros/foxy/setup.bash
-source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
-
-ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
---ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_07/cmd_vel
+python3 fakepose.py --cav 9 --path ./path/path3_2.json --rate 20 --speed 0.7 --loop
 ```
 
-- **차량별 코드 CAV09:**
+### 3-3. 고속 제어: 단일 실행
 
-```
-export ROS_DOMAIN_ID=0
-source /opt/ros/foxy/setup.bash
-source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
-
-ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
---ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_09/cmd_vel
-```
-
-- **차량별 코드 CAV10:**
-
-```
-export ROS_DOMAIN_ID=0
-source /opt/ros/foxy/setup.bash
-source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
-
-ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
---ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_10/cmd_vel
-```
-
-- **차량별 코드 CAV28:**
-
-```
-export ROS_DOMAIN_ID=0
-source /opt/ros/foxy/setup.bash
-source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
-
-ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
---ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_28/cmd_vel
+```bash
+ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
+  --ros-args \
+  -p port:=/dev/ttyUSB0 \
+  -p baud:=1000000 \
+  -p control_rate_hz:=1000.0 \
+  -p vehicle_speed_rate_hz:=100.0 \
+  -p command_refresh_hz:=50.0 \
+  -r cmd_vel:=/CAV_09/cmd_vel
 ```
