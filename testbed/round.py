@@ -9,6 +9,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from geometry_msgs.msg import Accel, PoseStamped
 
+
 # 터미널 출력 즉시 확인
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -85,12 +86,25 @@ def load_zone_from_csv(filename):
 # [차량 제어 클래스]
 # ============================================================
 class VehicleController(Node):
-    def __init__(self, vehicle_id, path_file, start_zone, start_trigger, out_zone=None, danger_zone=None):
+    def __init__(
+        self,
+        vehicle_id: int,
+        path_file: str,
+        start_zone: str,
+        start_trigger: str,
+        out_zone: str = None,
+        danger_zone: str = None,
+        # ✅ 추가: 토픽을 밖(task3.py)에서 주입받는다
+        pose_topic: str = None,
+        hv1_topic: str = None,
+        hv2_topic: str = None,
+        pub_topic: str = None,
+    ):
         super().__init__(f"drive_node_v{vehicle_id:02d}")
-        
-        self.vid = vehicle_id
-        self.id_str = f"{vehicle_id:02d}"
-        
+
+        self.vid = int(vehicle_id)
+        self.id_str = f"{self.vid:02d}"
+                
         # 1. 파일 로드
         self.path = load_path_from_json(path_file)
         self.start_zone_points = load_zone_from_csv(start_zone)
@@ -131,19 +145,32 @@ class VehicleController(Node):
         self.is_connected = False
         
         # 3. 통신
-        qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=1)
-        self.topic_pose = f"/CAV_{self.id_str}"
+        qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
+                         history=HistoryPolicy.KEEP_LAST, depth=1)
+
+        # ✅ defaults (혹시라도 안 넣으면 기존 포맷으로 fallback)
+        if pose_topic is None:
+            pose_topic = f"/CAV_{self.id_str}"
+        if pub_topic is None:
+            pub_topic = f"/CAV_{self.id_str}_accel_round_raw"
+        if hv1_topic is None:
+            hv1_topic = "/HV_19"
+        if hv2_topic is None:
+            hv2_topic = "/HV_20"
+
+        self.topic_pose = pose_topic
         self.sub_pose = self.create_subscription(PoseStamped, self.topic_pose, self._callback_pose, qos)
-        # 변경
-        self.pub_cmd  = self.create_publisher(Accel, f"/CAV_{self.id_str}_accel_round_raw", 10)
+
+        self.pub_cmd = self.create_publisher(Accel, pub_topic, 10)
+
+        # ACC edge boost states (CAV 3,4)
         self.acc_zone_prev_in = False
         self.acc_exit_boost_active = False
         self.acc_exit_boost_start_pos = (0.0, 0.0)
 
-
         if self.start_trigger_points or self.danger_zone_points:
-            self.sub_hv19 = self.create_subscription(PoseStamped, "/HV_19", self._callback_hv19, qos)
-            self.sub_hv20 = self.create_subscription(PoseStamped, "/HV_20", self._callback_hv20, qos)
+            self.sub_hv19 = self.create_subscription(PoseStamped, hv1_topic, self._callback_hv19, qos)
+            self.sub_hv20 = self.create_subscription(PoseStamped, hv2_topic, self._callback_hv20, qos)
 
     def _callback_hv19(self, msg):
         self.hv19_x = msg.pose.position.x; self.hv19_y = msg.pose.position.y; self.hv19_active = True
