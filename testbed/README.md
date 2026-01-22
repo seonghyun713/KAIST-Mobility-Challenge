@@ -16,14 +16,20 @@
  `/cmd_vel`
 
 - CAV1 Jetson: `ROS_DOMAIN_ID=0`
-- CAV2 Jetson: `ROS_DOMAIN_ID=0`
-- CAV3 Jetson: `ROS_DOMAIN_ID=0`
-- CAV4 Jetson: `ROS_DOMAIN_ID=0`
+- CAV2 Jetson: `ROS_DOMAIN_ID=1`
+- CAV3 Jetson: `ROS_DOMAIN_ID=2`
+- CAV4 Jetson: `ROS_DOMAIN_ID=3`
 
 ```bash
-# 로컬pc
 ROS_DOMAIN_ID=0 python3 task3.py# CAV1 제어
+ROS_DOMAIN_ID=1 python3 task3.py# CAV2 제어
+ROS_DOMAIN_ID=2 python3 task3.py# CAV3 제어
+ROS_DOMAIN_ID=3 python3 task3.py# CAV4 제어
 ```
+
+근데 너 코드 그대로는 한 번에 4대를 다루는 구조라서,
+
+실차 도메인 방식이면 보통 **“1대용으로 쪼개서 실행”**하는 게 깔끔해.
 
 ### 1. SSH 연결
 
@@ -88,7 +94,7 @@ source /opt/ros/foxy/setup.bash
 ```
 #CAV 01 정지
 source /opt/ros/foxy/setup.bash
-ros2 topic pub --once /CAV_01/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+ros2 topic pub --once /CAV_01/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0}, angular: {z: 0.0}}"
 ```
 
 **Domain ID 확인:**
@@ -106,7 +112,7 @@ export ROS_DOMAIN_ID=0
 **ssh 실행시켜야할 코드**: driver_read_allstate_node.cpp
 
 - **차량별 초기 pose를 쏴줘야 출발함**
-- **차량별 코드 CAV01:**
+- **차량별 코드 CAV07:**
 
 ```
 export ROS_DOMAIN_ID=0
@@ -114,10 +120,10 @@ source /opt/ros/foxy/setup.bash
 source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
 
 ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
---ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_01/cmd_vel
+--ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_07/cmd_vel
 ```
 
-- **차량별 코드 CAV02:**
+- **차량별 코드 CAV09:**
 
 ```
 export ROS_DOMAIN_ID=0
@@ -125,5 +131,27 @@ source /opt/ros/foxy/setup.bash
 source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
 
 ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
---ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_02/cmd_vel
+--ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_09/cmd_vel
+```
+
+- **차량별 코드 CAV10:**
+
+```
+export ROS_DOMAIN_ID=0
+source /opt/ros/foxy/setup.bash
+source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
+
+ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
+--ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_10/cmd_vel
+```
+
+- **차량별 코드 CAV28:**
+
+```
+export ROS_DOMAIN_ID=0
+source /opt/ros/foxy/setup.bash
+source ~/KAIST_Mobility_Challenge_SDK/examples/Driver_ROS2/install/setup.bash
+
+ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
+--ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_28/cmd_vel
 ```
