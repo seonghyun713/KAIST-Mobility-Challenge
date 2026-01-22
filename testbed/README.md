@@ -171,9 +171,9 @@ ros2 topic pub --once /CAV_09/cmd_vel geometry_msgs/msg/Twist \
 ### 3-2. Fake Pose
 
 ```bash
-export ROS_DOMAIN_ID=100
-source /opt/ros/foxy/setup.bash
-python3 fakepose.py --cav 9 --path ./path/path3_2.json --rate 20 --speed 0.7 --loop
+export ROS_DOMAIN_ID=100 
+source /opt/ros/foxy/setup.bash 
+python3 fakepose.py --cav 9 --path ./path/path3_2.json --rate 50 --loop --use_cmd_vel --speed 1.0
 ```
 
 ### 3-3. 고속 제어: 단일 실행
