@@ -16,6 +16,47 @@ from round import VehicleController as RoundController
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PATH_DIR = os.path.join(BASE_DIR, "path")
 
+# ============================================================
+# [TOPIC CONFIG] Change only here at the venue
+# ============================================================
+
+# Logical IDs used inside the algorithm (DO NOT change)
+CAV_LOGICAL_IDS = [1, 2, 3, 4]
+
+# Map: logical CAV id -> real topic number at the venue
+# Example: CAV1 uses /CAV_07, CAV2 uses /CAV_09, ...
+CAV_TOPIC_NUM = {
+    1: 7,
+    2: 9,
+    3: 10,
+    4: 28,
+}
+
+# HV topics (role names -> actual topic name)
+# If HV topic numbers change, edit here.
+HV_TOPICS = {
+    "HV1": "/HV_19",
+    "HV2": "/HV_20",
+}
+
+def cav_topic(logical_id: int) -> str:
+    n = int(CAV_TOPIC_NUM[logical_id])
+    return f"/CAV_{n:02d}"
+
+def cav_cmd_topic(logical_id: int) -> str:
+    return f"{cav_topic(logical_id)}/cmd_vel"
+
+def cav_accel_raw_topic(logical_id: int) -> str:
+    return f"{cav_topic(logical_id)}_accel_raw"
+
+def cav_accel_round_raw_topic(logical_id: int) -> str:
+    return f"{cav_topic(logical_id)}_accel_round_raw"
+
+def hv_topic(role: str) -> str:
+    return HV_TOPICS[role]
+
+
+
 
 # ============================================================
 # [1] Slow Zones Configuration (Fixed at 0.7 m/s)
@@ -117,7 +158,8 @@ class MapPredictionDriver(Node):
         super().__init__(f"driver_vehicle_{vehicle_id}")
         self.vid = int(vehicle_id)
         self.PATH_FILENAME = path_filename
-        self.TOPIC = f"/CAV_{self.vid:02d}"
+        self.logical_id = int(vehicle_id)
+        self.TOPIC = cav_topic(self.logical_id)
 
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -137,7 +179,7 @@ class MapPredictionDriver(Node):
 
         # ROS Comm
         self.create_subscription(PoseStamped, self.TOPIC, self.pose_callback, qos_profile)
-        self.accel_raw_pub = self.create_publisher(Accel, f"{self.TOPIC}_accel_raw", 10)
+        self.accel_raw_pub = self.create_publisher(Accel, cav_accel_raw_topic(self.logical_id), 10)
 
         # State Variables
         self.curr_x, self.curr_y, self.curr_yaw = 0.0, 0.0, 0.0
@@ -157,6 +199,7 @@ class MapPredictionDriver(Node):
         self.old_nearest_idx = 0
 
         self.create_timer(TICK_RATE, self.drive_loop)
+
 
     def pose_callback(self, msg):
         self.got_pose = True
@@ -350,8 +393,8 @@ class Problem3DualZoneGuardianMux(Node):
         super().__init__("problem3_dualzone_guardian_mux")
         qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
 
-        self.VEH_IDS = [1, 2, 3, 4]
-        self.TOPICS = {vid: f"/CAV_{vid:02d}" for vid in self.VEH_IDS}
+        self.VEH_IDS = CAV_LOGICAL_IDS
+        self.TOPICS = {vid: cav_topic(vid) for vid in self.VEH_IDS}
 
         # Parameters
         self.V_NOM = 0.7
@@ -372,6 +415,9 @@ class Problem3DualZoneGuardianMux(Node):
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
 
+        self.yaw = {vid: 0.0 for vid in self.VEH_IDS}
+
+
         # States
         self.pose = {vid: None for vid in self.VEH_IDS}
         self.raw = {vid: Accel() for vid in self.VEH_IDS}
@@ -389,11 +435,10 @@ class Problem3DualZoneGuardianMux(Node):
         for vid in self.VEH_IDS:
             topic = self.TOPICS[vid]
             self.create_subscription(PoseStamped, topic, self._make_pose_cb(vid), qos)
-            self.create_subscription(Accel, f"{topic}_accel_raw", self._make_raw_cb(vid), 10)
-            self.create_subscription(Accel, f"{topic}_accel_round_raw", self._make_round_raw_cb(vid), 10)
+            self.create_subscription(Accel, cav_accel_raw_topic(vid), self._make_raw_cb(vid), 10)
+            self.create_subscription(Accel, cav_accel_round_raw_topic(vid), self._make_round_raw_cb(vid), 10)
 
-            
-        self.pub = {vid: self.create_publisher(Twist, f"{self.TOPICS[vid]}/cmd_vel", 10) for vid in self.VEH_IDS}
+        self.pub = {vid: self.create_publisher(Twist, cav_cmd_topic(vid), 10) for vid in self.VEH_IDS}
         self._log_counter = 0
 
         # 4-Way Intersection Settings
@@ -426,8 +471,8 @@ class Problem3DualZoneGuardianMux(Node):
         self.TARGET_VELOCITY = 0.7; self.ZONE_RADIUS = 0.25; self.HV_DETECT_RADIUS = 0.10; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
-        self.create_subscription(PoseStamped, "/HV_19", self._cb_hv19, qos)
-        self.create_subscription(PoseStamped, "/HV_20", self._cb_hv20, qos)
+        self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
+        self.create_subscription(PoseStamped, hv_topic("HV2"), self._cb_hv20, qos)
 
         self.safety_cfg = {
             1: {
@@ -493,7 +538,10 @@ class Problem3DualZoneGuardianMux(Node):
     def _make_zone_state(self, c): return {"CENTER": c, "active": {v:False for v in self.VEH_IDS}, "outside_ticks": {v:0 for v in self.VEH_IDS}, "prev_dist": {v:None for v in self.VEH_IDS}, "approach_cnt": {v:0 for v in self.VEH_IDS}, "approaching": {v:False for v in self.VEH_IDS}}
     
     def _make_pose_cb(self, vid):
-        def cb(msg): self.pose[vid] = (float(msg.pose.position.x), float(msg.pose.position.y)); self._update_speed_est(vid, self.pose[vid])
+        def cb(msg):
+            self.pose[vid] = (float(msg.pose.position.x), float(msg.pose.position.y))
+            self.yaw[vid]  = float(msg.pose.orientation.z)  # 니네식 yaw
+            self._update_speed_est(vid, self.pose[vid])
         return cb
     
     def _make_raw_cb(self, vid):
@@ -680,6 +728,38 @@ class Problem3DualZoneGuardianMux(Node):
         print(msg)
 
 
+    ########### 디버깅
+    def _print_cav_status(self):
+        lines = []
+        for vid in self.VEH_IDS:
+            p = self.pose.get(vid)
+            if p is None:
+                continue
+
+            use_round = self._in_round_box(p)
+            src = self.round_raw.get(vid) if use_round else self.raw.get(vid)
+            if src is None:
+                continue
+
+            x, y = p
+            yaw_pose = float(self.yaw.get(vid, 0.0))     # PoseStamped의 orientation.z
+            steer_cmd = float(src.angular.z)             # 실제 사용 src 기준
+            v_cmd = float(src.linear.x)                  # 실제 사용 src 기준
+            v_est = float(self.v_est.get(vid, 0.0))
+
+            cav_num = CAV_TOPIC_NUM[vid]
+            lines.append(
+                f"CAV{cav_num:02d} | v_cmd={v_cmd:4.2f} | v_est={v_est:4.2f} | "
+                f"yaw={yaw_pose:+.2f} | steer={steer_cmd:+.2f} | x={x:+.2f} y={y:+.2f}"
+                f"{' | ROUND' if use_round else ''}"
+            )
+
+        if lines:
+            print("\n".join(lines))
+            print("-" * 60)
+
+
+
 
 
     # --- Main Loop ---
@@ -791,6 +871,8 @@ class Problem3DualZoneGuardianMux(Node):
         self._lap_log_cnt += 1
         if self._lap_log_cnt % self.LAP_LOG_PERIOD == 0:
             self._print_lap_status()
+            self._print_cav_status()
+
 
 
 
@@ -807,11 +889,40 @@ def main(args=None):
     # start_zone/start_trigger/out_zone/danger_zone 경로는 round_main.py가 기대하는 인자 그대로 넣어야 함
     p = lambda name: os.path.join(PATH_DIR, name)
     round_nodes = [
-        RoundController(1, p("path3_1.json"), p("path3_1_zone.csv"), p("path_hv_3_1.csv"), p("path3_1_out_zone.csv"), p("path_hv_3_2.csv")),
-        RoundController(2, p("path3_2.json"), p("path3_2_zone.csv"), p("path_hv_2_1.csv"), p("path3_2_out_zone.csv"), p("path_hv_2_2.csv")),
-        RoundController(3, p("path3_3.json"), p("path3_3_zone.csv"), p("path_hv_2_1.csv"), None,                     p("path_hv_2_1.csv")),
-        RoundController(4, p("path3_4.json"), p("path3_4_zone.csv"), p("path_hv_3_1.csv"), None,                     p("path_hv_3_1.csv")),
+        RoundController(
+            1, p("path3_1.json"), p("path3_1_zone.csv"), p("path_hv_3_1.csv"),
+            p("path3_1_out_zone.csv"), p("path_hv_3_2.csv"),
+            pose_topic=cav_topic(1),
+            pub_topic=cav_accel_round_raw_topic(1),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
+        RoundController(
+            2, p("path3_2.json"), p("path3_2_zone.csv"), p("path_hv_2_1.csv"),
+            p("path3_2_out_zone.csv"), p("path_hv_2_2.csv"),
+            pose_topic=cav_topic(2),
+            pub_topic=cav_accel_round_raw_topic(2),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
+        RoundController(
+            3, p("path3_3.json"), p("path3_3_zone.csv"), p("path_hv_2_1.csv"),
+            None, p("path_hv_2_1.csv"),
+            pose_topic=cav_topic(3),
+            pub_topic=cav_accel_round_raw_topic(3),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
+        RoundController(
+            4, p("path3_4.json"), p("path3_4_zone.csv"), p("path_hv_3_1.csv"),
+            None, p("path_hv_3_1.csv"),
+            pose_topic=cav_topic(4),
+            pub_topic=cav_accel_round_raw_topic(4),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
     ]
+
 
     guardian = Problem3DualZoneGuardianMux()
 
