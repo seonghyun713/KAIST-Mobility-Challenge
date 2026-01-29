@@ -118,15 +118,14 @@ docker run --rm -it \
 
 **Topic List**
 ```bash
-docker run --rm -it \
-  --net=host \
-  --ipc=host \
-  -e RUN_MODE=algorithm \
-  -e PROBLEM_ID=4 \
-  -e ROS_DOMAIN_ID=100 \
-  -e ROS_LOCALHOST_ONLY=0 \
-  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  h6
+source /opt/ros/foxy/setup.bash
+export ROS_DOMAIN_ID=100
+export ROS_LOCALHOST_ONLY=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ros2 daemon stop
+rm -rf ~/.ros/ros2cli ~/.ros/log
+ros2 daemon start
+ros2 topic list | grep CAV
 ```
 
 ---
