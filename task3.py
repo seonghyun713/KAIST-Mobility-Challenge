@@ -843,18 +843,24 @@ class Problem3DualZoneGuardianMux(Node):
                         self.hold_cnt[vid] -= 1
                     else:
                         self.hold_limit[vid] = None
-            # ✅ release_to 정책
-            if in_round.get(vid, False):
-                release_to = 99.0      # 회전교차로: 완전 해제
-            else:
-                release_to = self.V_NOM  # 사지/합류점: V_NOM까지만 해제
+            # 0) HV는 무조건 기존대로 (즉시)
+            if hv_force[vid]:
+                self._apply_limit_ramp(vid, self.tgt_limit[vid], force_immediate=True, release_to=99.0)
+                continue
 
+            # 1) 회전교차로는 무조건 즉시 풀기 (예전처럼)
+            if in_round.get(vid, False):
+                self.cmd_limit[vid] = 99.0
+                continue
+
+            # 2) 사지/합류만 램프 적용 (천천히 가속)
             self._apply_limit_ramp(
                 vid,
                 self.tgt_limit[vid],
-                force_immediate=hv_force[vid],
-                release_to=release_to
+                force_immediate=False,
+                release_to=self.V_NOM
             )
+
 
         # 4. Publish Commands
         for vid in self.VEH_IDS:
