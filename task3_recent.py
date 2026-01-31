@@ -407,7 +407,7 @@ class MapPredictionDriver(Node):
 
 
 
-        final_steer = max(-1.0, min(1.0, float(p + i_term + d_term + cte)))
+        final_steer = max(-1.7, min(1.7, float(p + i_term + d_term + cte)))
         self.prev_err = yaw_err
 
         # --------------------------------------------------------
