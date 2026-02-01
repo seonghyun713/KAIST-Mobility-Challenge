@@ -32,7 +32,7 @@ SLOW_ZONES = [
 ]
 
 SLOW_PARAMS = {
-    "vel": 0.9,          
+    "vel": 1.2,          
     "look_ahead": 0.50, 
     "kp": 6.0,          
     "ki": 0.045,
@@ -46,7 +46,7 @@ SLOW_PARAMS = {
 
 # 1. Hard Curve (Low Speed, High Gain)
 HARD_PARAMS = {
-    "vel": 0.7,
+    "vel": 1.0,
     "look_ahead": 0.56,
     "kp": 6.0,
     "ki": 0.045,
@@ -56,7 +56,7 @@ HARD_PARAMS = {
 
 # 2. Easy Curve (Medium Speed)
 EASY_PARAMS = {
-    "vel": 0.8,
+    "vel": 1.1,
     "look_ahead": 0.60, 
     "kp": 6.0,
     "ki": 0.05,
@@ -66,7 +66,7 @@ EASY_PARAMS = {
 
 # 3. Straight (High Speed, Stability Focused)
 STRAIGHT_PARAMS = {
-    "vel": 1.0,
+    "vel": 1.5,
     "look_ahead": 1.2,  # Increased for high speed
     "kp": 2.0,          # Reduced to prevent oscillation
     "ki": 0.002,        # Minimize integral windup
@@ -250,7 +250,7 @@ class MapPredictionDriver(Node):
 
 
         # Find Look-ahead Point
-        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.6)
+        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.5)
         
         target_idx = curr_idx
         for i in range(path_len):
@@ -282,7 +282,7 @@ class MapPredictionDriver(Node):
             cte = min_d * cte_sign * params["k_cte"]
 
         # PID Calculation
-        self.int_err = max(-1.0, min(1.0, self.int_err + yaw_err * dt))
+        self.int_err = max(-2.0, min(2.0, self.int_err + yaw_err * dt))
         
         p = params["kp"] * yaw_err
         i_term = params["ki"] * self.int_err
@@ -354,9 +354,9 @@ class Problem3DualZoneGuardianMux(Node):
         self.TOPICS = {vid: f"/CAV_{vid:02d}" for vid in self.VEH_IDS}
 
         # Parameters
-        self.V_NOM = 0.9
-        self.RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
-        self.RANK_SPEEDS_2P = [0.9, 0.3]
+        self.V_NOM = 1.2
+        self.RANK_SPEEDS_3P = [1.2, 0.8, 0.4, 0.4]
+        self.RANK_SPEEDS_2P = [1.2, 0.4]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
@@ -368,7 +368,7 @@ class Problem3DualZoneGuardianMux(Node):
 
         self.TICK = 0.05
         self.RAMP_DOWN_PER_SEC = 1.5
-        self.RAMP_UP_PER_SEC = 0.3
+        self.RAMP_UP_PER_SEC = 0.2
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
         
@@ -411,9 +411,9 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_HYSTERESIS_N = 10
         self.FW_APPROACH_N = 2
         self.FW_EPS = 0.001
-        self.FW_V_NOM = 0.9
-        self.FW_RANK_SPEEDS_2P = [0.9, 0.3]
-        self.FW_RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.1]
+        self.FW_V_NOM = 1.2
+        self.FW_RANK_SPEEDS_2P = [1.2, 0.4]
+        self.FW_RANK_SPEEDS_3P = [1.2, 0.8, 0.4, 0.4]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
@@ -431,7 +431,7 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.7; self.ZONE_RADIUS = 0.25; self.HV_DETECT_RADIUS = 0.10; self.RESET_DISTANCE = 2.2
+        self.TARGET_VELOCITY = 0.6; self.ZONE_RADIUS = 0.20; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
         self.create_subscription(PoseStamped, "/HV_19", self._cb_hv19, qos)
