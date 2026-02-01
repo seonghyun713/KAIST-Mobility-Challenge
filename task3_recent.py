@@ -73,7 +73,7 @@ SLOW_ZONES = [
 ]
 
 SLOW_PARAMS = {
-    "vel": 0.7,          
+    "vel": 0.9,          
     "look_ahead": 0.6, 
     "kp": 4.5,          
     "ki": 0.055,
@@ -87,7 +87,7 @@ SLOW_PARAMS = {
 # ============================================================
 
 HARD_PARAMS = {
-    "vel": 0.5,
+    "vel": 0.7,
     "look_ahead": 0.55,
     "kp": 5.2,
     "ki": 0.055,
@@ -96,7 +96,7 @@ HARD_PARAMS = {
 }
 
 EASY_PARAMS = {
-    "vel": 0.75,
+    "vel": 0.9,
     "look_ahead": 0.70,
     "kp": 4.2,
     "ki": 0.06,
@@ -106,7 +106,7 @@ EASY_PARAMS = {
 
 
 STRAIGHT_PARAMS = {
-    "vel": 0.9,        # 0.9 -> 0.85 (일단 안정화)
+    "vel": 1.2,        # 0.9 -> 0.85 (일단 안정화)
     "look_ahead": 1.0,  # 살짝 늘려서 직진성 강화
     "kp": 2.0,
     "ki": 0.00,         # 직진에서 I는 일단 꺼
@@ -468,21 +468,21 @@ class Problem3DualZoneGuardianMux(Node):
         self.TOPICS = {vid: cav_topic(vid) for vid in self.VEH_IDS}
 
         # Parameters
-        self.V_NOM = 0.7
-        self.RANK_SPEEDS_3P = [0.7, 0.45, 0.2, 0.2]
-        self.RANK_SPEEDS_2P = [0.7, 0.2]
+        self.V_NOM = 0.9
+        self.RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
+        self.RANK_SPEEDS_2P = [0.9, 0.3]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
         self.RADIUS = 1.5
         self.EXIT_RADIUS = 0.4
-        self.APPROACH_N = 2
+        self.APPROACH_N = 3
         self.EPS = 0.001
         self.HYSTERESIS_N = 5
 
         self.TICK = 0.05
         self.RAMP_DOWN_PER_SEC = 1.5
-        self.RAMP_UP_PER_SEC = 0.25
+        self.RAMP_UP_PER_SEC = 0.15
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
 
@@ -525,11 +525,11 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_RADIUS = 2.2
         self.FW_EXIT_RADIUS = 0.4
         self.FW_HYSTERESIS_N = 10
-        self.FW_APPROACH_N = 2
+        self.FW_APPROACH_N = 3
         self.FW_EPS = 0.001
-        self.FW_V_NOM = 0.7
-        self.FW_RANK_SPEEDS_2P = [0.7, 0.2]
-        self.FW_RANK_SPEEDS_3P = [0.7, 0.45, 0.2, 0.1]
+        self.FW_V_NOM = 0.9
+        self.FW_RANK_SPEEDS_2P = [0.9, 0.3]
+        self.FW_RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
