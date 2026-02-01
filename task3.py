@@ -250,7 +250,7 @@ class MapPredictionDriver(Node):
 
 
         # Find Look-ahead Point
-        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.5)
+        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
         
         target_idx = curr_idx
         for i in range(path_len):
