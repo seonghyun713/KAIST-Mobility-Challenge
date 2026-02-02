@@ -62,8 +62,8 @@ def hv_topic(role: str) -> str:
 # [1] Slow Zones Configuration (Fixed at 0.7 m/s)
 # ============================================================
 RAW_SLOW_ZONES = [
-    (-0.1, -4.6,  1.8, -1.8), # 사지교차로 범위
-    ( 0.4,  2.7,  1.8, -1.4), # 회전교차로 범위
+    (-0.5, -4.6,  2.0, -2.0), # 사지교차로 범위
+    (-0.5,  2.7,  1.8, -1.4), # 회전교차로 범위
 ]
 
 # Normalize coordinates (min, max) for safety
@@ -73,7 +73,7 @@ SLOW_ZONES = [
 ]
 
 SLOW_PARAMS = {
-    "vel": 0.7,          
+    "vel": 0.9,          
     "look_ahead": 0.6, 
     "kp": 4.5,          
     "ki": 0.055,
@@ -87,7 +87,7 @@ SLOW_PARAMS = {
 # ============================================================
 
 HARD_PARAMS = {
-    "vel": 0.5,
+    "vel": 0.7,
     "look_ahead": 0.55,
     "kp": 5.2,
     "ki": 0.055,
@@ -96,7 +96,7 @@ HARD_PARAMS = {
 }
 
 EASY_PARAMS = {
-    "vel": 0.75,
+    "vel": 0.9,
     "look_ahead": 0.70,
     "kp": 4.2,
     "ki": 0.06,
@@ -106,7 +106,7 @@ EASY_PARAMS = {
 
 
 STRAIGHT_PARAMS = {
-    "vel": 0.9,        # 0.9 -> 0.85 (일단 안정화)
+    "vel": 1.2,        # 0.9 -> 0.85 (일단 안정화)
     "look_ahead": 1.0,  # 살짝 늘려서 직진성 강화
     "kp": 2.0,
     "ki": 0.00,         # 직진에서 I는 일단 꺼
@@ -307,7 +307,7 @@ class MapPredictionDriver(Node):
 
 
         # Find Look-ahead Point
-        active_look_ahead = max(params["look_ahead"], self.current_vel_cmd * 0.6)
+        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.4)
         
         target_idx = curr_idx
         for i in range(path_len):
@@ -386,7 +386,7 @@ class MapPredictionDriver(Node):
 
 
         # PID Calculation
-        self.int_err = max(-1.0, min(1.0, self.int_err + yaw_err * dt))
+        self.int_err = max(-2.0, min(2.0, self.int_err + yaw_err * dt))
         
         p = params["kp"] * yaw_err
         i_term = params["ki"] * self.int_err
@@ -407,7 +407,7 @@ class MapPredictionDriver(Node):
 
 
 
-        final_steer = max(-1.0, min(1.0, float(p + i_term + d_term + cte)))
+        final_steer = max(-1.7, min(1.7, float(p + i_term + d_term + cte)))
         self.prev_err = yaw_err
 
         # --------------------------------------------------------
@@ -421,7 +421,7 @@ class MapPredictionDriver(Node):
             filter_val = abs(self.avg_steer_signed)
 
             next_mode = self.mode 
-            if abs(final_steer) > 0.98:
+            if abs(final_steer) > 0.90:
                 next_mode = "HARD"
                 # self.avg_steer_signed 강제 주입 삭제
 
@@ -468,23 +468,31 @@ class Problem3DualZoneGuardianMux(Node):
         self.TOPICS = {vid: cav_topic(vid) for vid in self.VEH_IDS}
 
         # Parameters
-        self.V_NOM = 0.7
-        self.RANK_SPEEDS_3P = [0.7, 0.45, 0.2, 0.2]
-        self.RANK_SPEEDS_2P = [0.7, 0.2]
+        self.V_NOM = 0.9
+        self.RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
+        self.RANK_SPEEDS_2P = [0.9, 0.3]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
         self.RADIUS = 1.5
         self.EXIT_RADIUS = 0.4
-        self.APPROACH_N = 2
+        self.APPROACH_N = 3
         self.EPS = 0.001
         self.HYSTERESIS_N = 5
 
         self.TICK = 0.05
-        self.RAMP_DOWN_PER_SEC = 3.0
-        self.RAMP_UP_PER_SEC = 0.10
+        self.RAMP_DOWN_PER_SEC = 1.5
+        self.RAMP_UP_PER_SEC = 0.15
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
+
+        # =========================
+        # HOLD (감속 유지) 설정
+        # =========================
+        self.HOLD_TICKS = 12  # 12 * 0.05s = 0.6초 정도 유지 (원하는대로)
+        self.hold_cnt = {vid: 0 for vid in self.VEH_IDS}
+        self.hold_limit = {vid: None for vid in self.VEH_IDS}  # 마지막으로 걸린 제한값 저장
+
 
         self.yaw = {vid: 0.0 for vid in self.VEH_IDS}
 
@@ -517,11 +525,11 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_RADIUS = 2.2
         self.FW_EXIT_RADIUS = 0.4
         self.FW_HYSTERESIS_N = 10
-        self.FW_APPROACH_N = 2
+        self.FW_APPROACH_N = 3
         self.FW_EPS = 0.001
-        self.FW_V_NOM = 0.7
-        self.FW_RANK_SPEEDS_2P = [0.7, 0.2]
-        self.FW_RANK_SPEEDS_3P = [0.7, 0.45, 0.2, 0.1]
+        self.FW_V_NOM = 0.9
+        self.FW_RANK_SPEEDS_2P = [0.9, 0.3]
+        self.FW_RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
@@ -539,7 +547,7 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.7; self.ZONE_RADIUS = 0.25; self.HV_DETECT_RADIUS = 0.10; self.RESET_DISTANCE = 2.2
+        self.TARGET_VELOCITY = 0.6; self.ZONE_RADIUS = 0.20; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
         self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
@@ -632,7 +640,7 @@ class Problem3DualZoneGuardianMux(Node):
         if not p:
             return False
         x, y = p
-        x_min, x_max, y_min, y_max = (0.4, 2.7, -1.4, 1.4)  # 정규화된 값
+        x_min, x_max, y_min, y_max = (-0.5, 2.7, -1.4, 1.8)  # 정규화된 값
         return (x_min <= x <= x_max) and (y_min <= y <= y_max)
 
 
@@ -642,14 +650,34 @@ class Problem3DualZoneGuardianMux(Node):
             d = math.hypot(p[0]-prev[0], p[1]-prev[1]); v = d/self.TICK; self.v_est[vid] = 0.35*v + 0.65*self.v_est[vid]
         self.last_pose[vid] = p
 
-    def _apply_limit_ramp(self, vid, tgt, force_immediate=False):
-        if tgt is None: self.cmd_limit[vid] = 99.0; return
-        if force_immediate: self.cmd_limit[vid] = max(self.MIN_SPEED, float(tgt)); return
-        cur = self.cmd_limit[vid]
-        if cur > 50: cur = float(self.raw[vid].linear.x) if self.raw[vid] is not None else self.V_NOM
-        step_down = self.RAMP_DOWN_PER_SEC * self.TICK; step_up = self.RAMP_UP_PER_SEC * self.TICK
-        if tgt > cur: cur = min(tgt, cur + step_up)
-        else: cur = max(tgt, cur - step_down)
+    def _apply_limit_ramp(self, vid, tgt, force_immediate=False, release_to=99.0):
+        # tgt: 제한값(예: 0.1, 0.5 ...) 또는 None(제한 해제)
+        # release_to: None 해제 시 어디까지 풀어줄지 (99 or V_NOM)
+
+        if force_immediate:
+            # HV 같은 강제 상황은 즉시
+            if tgt is None:
+                self.cmd_limit[vid] = float(release_to)
+            else:
+                self.cmd_limit[vid] = max(self.MIN_SPEED, float(tgt))
+            return
+
+        cur = float(self.cmd_limit[vid])
+
+        # 초기값(99)일 때는 현재 raw 속도에서 시작하게
+        if cur > 50.0:
+            cur = float(self.raw[vid].linear.x) if self.raw[vid] is not None else self.V_NOM
+
+        step_down = self.RAMP_DOWN_PER_SEC * self.TICK
+        step_up   = self.RAMP_UP_PER_SEC   * self.TICK
+
+        tgt2 = float(release_to) if tgt is None else float(tgt)
+
+        if tgt2 > cur:
+            cur = min(tgt2, cur + step_up)
+        else:
+            cur = max(tgt2, cur - step_down)
+
         self.cmd_limit[vid] = max(self.MIN_SPEED, float(cur))
 
     def _rank_by_ttc(self, zone_name, vids):
@@ -835,77 +863,100 @@ class Problem3DualZoneGuardianMux(Node):
 
     # --- Main Loop ---
     def tick(self):
-        # ✅ Roundabout ON 여부: (누구라도) 회전교차로 박스 안이면 True
-        roundabout_on = False
+         # ✅ 차량별 회전교차로 진입 여부 (전역 roundabout_on 삭제)
+        in_round = {}
         for vid in self.VEH_IDS:
-            if self.pose[vid] is not None and self._in_round_box(self.pose[vid]):
-                roundabout_on = True
-                break
+            p = self.pose.get(vid)
+            in_round[vid] = (p is not None) and self._in_round_box(p)
 
-        if all(self.pose[v] is None for v in self.VEH_IDS): return
-        
+        if all(self.pose[v] is None for v in self.VEH_IDS):
+            return
+
         # 1. Update Zone Logic (Roundabout/Intersection)
-        self._update_zone_flags("TOP"); self._update_zone_flags("BOT")
+        self._update_zone_flags("TOP")
+        self._update_zone_flags("BOT")
         top_lim, top_eff, top_on = self._compute_zone_limits("TOP")
         bot_lim, bot_eff, bot_on = self._compute_zone_limits("BOT")
-        
 
-        # 2. Update 4-Way Intersection Logic  (✅ Roundabout 구간에서는 OFF)
+        # 2. Update 4-Way Intersection Logic  (✅ 차량별로 OFF)
         fw_lim = {v: None for v in self.VEH_IDS}
         fw_eff = []
 
-        if not roundabout_on:
-            for vid in self.VEH_IDS:
-                p = self.pose[vid]
-                if not p:
-                    continue
-                d = self._fw_dist(vid)
-                if d is None:
-                    continue
+        for vid in self.VEH_IDS:
+            # ✅ 이 차량이 회전교차로 안이면 FW 로직만 스킵 (다른 차량은 계속)
+            if in_round.get(vid, False):
+                # (선택) FW 상태가 남아서 다음에 튀는 게 걱정되면 리셋도 가능:
+                # self.fw["active"][vid] = False
+                # self.fw["outside_ticks"][vid] = 0
+                self.fw["approach_cnt"][vid] = 0
+                self.fw["approaching"][vid] = False
+                self.fw["prev_dist"][vid] = None
+                continue
 
-                if d < self.FW_RADIUS:
-                    self.fw["active"][vid] = True
-                    self.fw["outside_ticks"][vid] = 0
-                elif d > self.FW_EXIT_RADIUS:
-                    if self.fw["active"][vid]:
-                        self.fw["outside_ticks"][vid] += 1
-                        if self.fw["outside_ticks"][vid] >= self.FW_HYSTERESIS_N:
-                            self.fw["active"][vid] = False
+            p = self.pose[vid]
+            if not p:
+                continue
 
-                prev = self.fw["prev_dist"][vid]
-                if prev is None:
-                    self.fw["prev_dist"][vid] = d
-                    self.fw["approaching"][vid] = False
+            d = self._fw_dist(vid)
+            if d is None:
+                continue
+
+            # --- active / hysteresis ---
+            if d < self.FW_RADIUS:
+                self.fw["active"][vid] = True
+                self.fw["outside_ticks"][vid] = 0
+            elif d > self.FW_EXIT_RADIUS:
+                if self.fw["active"][vid]:
+                    self.fw["outside_ticks"][vid] += 1
+                    if self.fw["outside_ticks"][vid] >= self.FW_HYSTERESIS_N:
+                        self.fw["active"][vid] = False
+                        self.fw["outside_ticks"][vid] = 0
+
+            # --- approaching (dist decreasing based) ---
+            prev = self.fw["prev_dist"][vid]
+            if prev is None:
+                self.fw["prev_dist"][vid] = d
+                self.fw["approach_cnt"][vid] = 0
+                self.fw["approaching"][vid] = False
+            else:
+                if d < prev - self.FW_EPS:
+                    self.fw["approach_cnt"][vid] += 1
                 else:
-                    if d < prev - self.FW_EPS:
-                        self.fw["approach_cnt"][vid] += 1
-                    else:
-                        self.fw["approach_cnt"][vid] = 0
-                    self.fw["approaching"][vid] = (self.fw["approach_cnt"][vid] >= self.FW_APPROACH_N)
-                    self.fw["prev_dist"][vid] = d
+                    self.fw["approach_cnt"][vid] = 0
 
-            fw_eff = [v for v in self.VEH_IDS if self.pose[v] and self.fw["active"][v] and self.fw["approaching"][v]]
-            fw_map = {}
-            for v in fw_eff:
-                dd = self._fw_get_direction(v)
-                if dd:
-                    fw_map[v] = dd
+                self.fw["approaching"][vid] = (self.fw["approach_cnt"][vid] >= self.FW_APPROACH_N)
+                self.fw["prev_dist"][vid] = d
 
-            pairs = set((v, d) for v, d in fw_map.items())
-            matched = None
-            for c in self.FW_CASES:
-                if c.issubset(pairs):
-                    matched = c
-                    break
+        # ✅ fw_eff도 차량별 in_round 제외 (이중 안전장치)
+        fw_eff = [
+            v for v in self.VEH_IDS
+            if self.pose[v]
+            and self.fw["active"][v]
+            and self.fw["approaching"][v]
+            and (not in_round.get(v, False))
+        ]
 
-            if matched:
-                targs = [v for v, _ in matched]
-                targs.sort(key=lambda v: self._fw_dist(v) or 1e9)
-                n = len(targs)
-                spd = self.FW_RANK_SPEEDS_2P if n == 2 else self.FW_RANK_SPEEDS_3P
-                for i, vid in enumerate(targs):
-                    des = spd[min(i, len(spd) - 1)]
-                    fw_lim[vid] = des if des < self.FW_V_NOM else None
+        fw_map = {}
+        for v in fw_eff:
+            dd = self._fw_get_direction(v)
+            if dd:
+                fw_map[v] = dd
+
+        pairs = set((v, d) for v, d in fw_map.items())
+        matched = None
+        for c in self.FW_CASES:
+            if c.issubset(pairs):
+                matched = c
+                break
+
+        if matched:
+            targs = [v for v, _ in matched]
+            targs.sort(key=lambda v: self._fw_dist(v) or 1e9)
+            n = len(targs)
+            spd = self.FW_RANK_SPEEDS_2P if n == 2 else self.FW_RANK_SPEEDS_3P
+            for i, vid in enumerate(targs):
+                des = spd[min(i, len(spd) - 1)]
+                fw_lim[vid] = des if des < self.FW_V_NOM else None
 
         # 3. HV Safety & Merge Limits
         hv_lim = {v:None for v in self.VEH_IDS}; hv_force = {v:False for v in self.VEH_IDS}; hv_r = {v:None for v in self.VEH_IDS}
@@ -914,12 +965,52 @@ class Problem3DualZoneGuardianMux(Node):
         
         for vid in self.VEH_IDS:
             cands = []
-            if top_lim.get(vid): cands.append(float(top_lim[vid]))
-            if bot_lim.get(vid): cands.append(float(bot_lim[vid]))
-            if fw_lim.get(vid): cands.append(float(fw_lim[vid]))
+            if top_lim.get(vid) is not None: cands.append(float(top_lim[vid]))
+            if bot_lim.get(vid) is not None: cands.append(float(bot_lim[vid]))
+            if fw_lim.get(vid) is not None: cands.append(float(fw_lim[vid]))
             if hv_lim.get(vid) is not None: cands.append(float(hv_lim[vid]))
             self.tgt_limit[vid] = min(cands) if cands else None
-            self._apply_limit_ramp(vid, self.tgt_limit[vid], force_immediate=hv_force[vid])
+            
+            
+            # =========================
+            # ✅ HOLD 적용 (깜빡임 방지)
+            # =========================
+            if hv_force[vid]:
+                # HV 정지는 강제 즉시 적용이니까 hold 개념 필요 없음
+                self.hold_cnt[vid] = 0
+                self.hold_limit[vid] = None
+
+            else:
+                if self.tgt_limit[vid] is not None:
+                    # 이번 tick에 제한이 새로 걸렸으면 "저장 + hold 충전"
+                    self.hold_limit[vid] = float(self.tgt_limit[vid])
+                    self.hold_cnt[vid] = self.HOLD_TICKS
+
+                else:
+                    # 제한이 없어졌더라도 hold가 남아있으면 이전 제한을 계속 유지
+                    if self.hold_cnt[vid] > 0 and self.hold_limit[vid] is not None:
+                        self.tgt_limit[vid] = float(self.hold_limit[vid])
+                        self.hold_cnt[vid] -= 1
+                    else:
+                        self.hold_limit[vid] = None
+            # 0) HV는 무조건 기존대로 (즉시)
+            if hv_force[vid]:
+                self._apply_limit_ramp(vid, self.tgt_limit[vid], force_immediate=True, release_to=99.0)
+                continue
+
+            # 1) 회전교차로는 무조건 즉시 풀기 (예전처럼)
+            if in_round.get(vid, False):
+                self.cmd_limit[vid] = 99.0
+                continue
+
+            # 2) 사지/합류만 램프 적용 (천천히 가속)
+            self._apply_limit_ramp(
+                vid,
+                self.tgt_limit[vid],
+                force_immediate=False,
+                release_to=self.V_NOM
+            )
+
 
         # 4. Publish Commands
         for vid in self.VEH_IDS:
@@ -1015,4 +1106,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
