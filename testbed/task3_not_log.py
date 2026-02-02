@@ -63,7 +63,7 @@ def hv_topic(role: str) -> str:
 # ============================================================
 RAW_SLOW_ZONES = [
     (-0.5, -4.6,  2.0, -2.0), # 사지교차로 범위
-    (-0.5,  2.7,  1.8, -1.4), # 회전교차로 범위
+    (-0.5,  2.7,  2.0, -1.4), # 회전교차로 범위
 ]
 
 # Normalize coordinates (min, max) for safety
@@ -71,6 +71,13 @@ SLOW_ZONES = [
     (min(x1, x2), max(x1, x2), min(y1, y2), max(y1, y2))
     for (x1, x2, y1, y2) in RAW_SLOW_ZONES
 ]
+
+SLOW2_CUTOUT = {
+    "x_min": -0.50,
+    "x_max": 0.37,
+    "y_min":  0.00,
+    "y_max":  1.80,
+}
 
 SLOW_PARAMS = {
     "vel": 1.5,          
@@ -88,8 +95,8 @@ MAX_SPEED = 1.5
 
 # 1. Hard Curve (Low Speed, High Gain)
 HARD_PARAMS = {
-    "vel": 1.2,
-    "look_ahead": 0.56,
+    "vel": 1.0,
+    "look_ahead": 0.60,
     "kp": 6.0,
     "ki": 0.045,
     "kd": 1.0,
@@ -99,7 +106,7 @@ HARD_PARAMS = {
 # 2. Easy Curve (Medium Speed)
 EASY_PARAMS = {
     "vel": 1.3,
-    "look_ahead": 0.60, 
+    "look_ahead": 0.65, 
     "kp": 6.0,
     "ki": 0.05,
     "kd": 1.0,
@@ -122,6 +129,9 @@ DIST_CENTER_TO_REAR = WHEELBASE / 2.0
 TICK_RATE = 0.02      # 50 Hz
 ACCEL_LIMIT = 0.8
 DECEL_LIMIT = 1.5
+
+# active lookahead min
+MIN_LA = 0.5
 
 # ============================================================
 # [COMMON: File Loaders]
@@ -206,7 +216,7 @@ class MapPredictionDriver(Node):
         self.last_time = self.get_clock().now()
         self._skip_dterm = 0
         
-        self.current_vel_cmd = 0.5
+        self.current_vel_cmd = 1.0
         self.mode = "HARD"
         self.avg_steer_signed = 0.0 
         self.log_counter = 0
@@ -224,10 +234,29 @@ class MapPredictionDriver(Node):
         self.curr_y = float(msg.pose.position.y) - (DIST_CENTER_TO_REAR * math.sin(self.curr_yaw))
 
     def is_in_slow_zone(self, x, y):
-        for (x_min, x_max, y_min, y_max) in SLOW_ZONES:
-            if x_min <= x <= x_max and y_min <= y <= y_max:
-                return True
-        return False
+        # -------------------------
+        # Slow zone 1 (기존 그대로)
+        # -------------------------
+        x1_min, x1_max, y1_min, y1_max = SLOW_ZONES[0]
+        in_zone1 = (x1_min <= x <= x1_max) and (y1_min <= y <= y1_max)
+
+        # -------------------------
+        # Slow zone 2 (cutout 적용)
+        # -------------------------
+        x2_min, x2_max, y2_min, y2_max = SLOW_ZONES[1]
+        in_big2 = (x2_min <= x <= x2_max) and (y2_min <= y <= y2_max)
+
+        # 제거할 사각형 (좌표 기반)
+        cx_min = SLOW2_CUTOUT["x_min"]
+        cx_max = SLOW2_CUTOUT["x_max"]
+        cy_min = SLOW2_CUTOUT["y_min"]
+        cy_max = SLOW2_CUTOUT["y_max"]
+
+        in_cutout = (cx_min <= x <= cx_max) and (cy_min <= y <= cy_max)
+
+        in_zone2 = in_big2 and (not in_cutout)
+
+        return in_zone1 or in_zone2
 
     def normalize_angle(self, angle):
         while angle > math.pi: angle -= 2.0 * math.pi
@@ -308,7 +337,10 @@ class MapPredictionDriver(Node):
 
 
         # Find Look-ahead Point
-        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.4)
+        #active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
+        
+
+        active_look_ahead = max(MIN_LA,(min(params["look_ahead"], self.current_vel_cmd * 0.45)))
         
         target_idx = curr_idx
         for i in range(path_len):
@@ -335,52 +367,52 @@ class MapPredictionDriver(Node):
         self.yaw_err_f = self.normalize_angle(self.yaw_err_f + alpha * err_delta)
 
 
-        # # Calculate Cross Track Error (CTE)
-        # path_dx = tx - self.path_x[curr_idx]
-        # path_dy = ty - self.path_y[curr_idx]
+        # Calculate Cross Track Error (CTE)
+        path_dx = tx - self.path_x[curr_idx]
+        path_dy = ty - self.path_y[curr_idx]
         
-        # if math.hypot(path_dx, path_dy) < 0.001:
-        #     cte = 0.0
-        # else:
-        #     car_dx = self.curr_x - self.path_x[curr_idx]
-        #     car_dy = self.curr_y - self.path_y[curr_idx]
-        #     cross_prod = path_dx * car_dy - path_dy * car_dx
-        #     cte_sign = 1.0 if cross_prod > 0 else -1.0
-        #     cte = min_d * cte_sign * params["k_cte"]
-
-
-        # Calculate Cross Track Error (CTE) - tangent based (stable sign)
-        path_len = len(self.path_pts)
-        next_idx = (curr_idx + 1) % path_len
-
-        px, py = self.path_x[curr_idx], self.path_y[curr_idx]
-        nx, ny = self.path_x[next_idx], self.path_y[next_idx]
-
-        # Tangent vector of path at curr_idx
-        t_x = nx - px
-        t_y = ny - py
-        t_norm = math.hypot(t_x, t_y)
-
-        if t_norm < 1e-6:
+        if math.hypot(path_dx, path_dy) < 0.02:
             cte = 0.0
         else:
-            # Vector from path point to car
-            c_x = self.curr_x - px
-            c_y = self.curr_y - py
-
-            # signed distance from path (left/right)
-            signed_cte = (t_x * c_y - t_y * c_x) / t_norm
-
-            # clamp to suppress spikes from localization jitter
-            cte_clip = 0.25 if self.mode in ["HARD","EASY"] else 0.6
-            signed_cte = max(-cte_clip, min(cte_clip, signed_cte))
+            car_dx = self.curr_x - self.path_x[curr_idx]
+            car_dy = self.curr_y - self.path_y[curr_idx]
+            cross_prod = path_dx * car_dy - path_dy * car_dx
+            cte_sign = 1.0 if cross_prod > 0 else -1.0
+            cte = min_d * cte_sign * params["k_cte"]
 
 
-            cte = signed_cte * params["k_cte"]
+        # # Calculate Cross Track Error (CTE) - tangent based (stable sign)
+        # path_len = len(self.path_pts)
+        # next_idx = (curr_idx + 1) % path_len
 
-            # ✅ 직진(STRATGT)에서만 CTE kill
-            if self.mode == "STRAIGHT":
-                cte = 0.0
+        # px, py = self.path_x[curr_idx], self.path_y[curr_idx]
+        # nx, ny = self.path_x[next_idx], self.path_y[next_idx]
+
+        # # # Tangent vector of path at curr_idx
+        # t_x = nx - px
+        # t_y = ny - py
+        # t_norm = math.hypot(t_x, t_y)
+
+        # if t_norm < 1e-6:
+        #     cte = 0.0
+        # else:
+        #     # Vector from path point to car
+        #     c_x = self.curr_x - px
+        #     c_y = self.curr_y - py
+
+        #     # signed distance from path (left/right)
+        #     signed_cte = (t_x * c_y - t_y * c_x) / t_norm
+
+        #     # clamp to suppress spikes from localization jitter
+        #     cte_clip = 0.25 if self.mode in ["HARD","EASY"] else 0.6
+        #     signed_cte = max(-cte_clip, min(cte_clip, signed_cte))
+
+
+        #     cte = signed_cte * params["k_cte"]
+
+        #     # ✅ 직진(STRATGT)에서만 CTE kill
+        #     if self.mode == "STRAIGHT":
+        #         cte = 0.0
 
 
 
@@ -408,7 +440,7 @@ class MapPredictionDriver(Node):
 
 
 
-        final_steer = max(-1.7, min(1.7, float(p + i_term + d_term + cte)))
+        final_steer = max(-2.0, min(2.0, float(p + i_term + d_term + cte)))
         self.prev_err = yaw_err
 
         # --------------------------------------------------------
@@ -470,8 +502,8 @@ class Problem3DualZoneGuardianMux(Node):
 
         # Parameters
         self.V_NOM = MAX_SPEED
-        self.RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
-        self.RANK_SPEEDS_2P = [0.9, 0.3]
+        self.RANK_SPEEDS_3P = [MAX_SPEED, 1.0, 0.5, 0.3]
+        self.RANK_SPEEDS_2P = [MAX_SPEED, 0.5]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
@@ -483,7 +515,7 @@ class Problem3DualZoneGuardianMux(Node):
 
         self.TICK = 0.02
         self.RAMP_DOWN_PER_SEC = 1.5
-        self.RAMP_UP_PER_SEC = 0.15
+        self.RAMP_UP_PER_SEC = 0.25
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
 
@@ -528,9 +560,9 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_HYSTERESIS_N = 10
         self.FW_APPROACH_N = 3
         self.FW_EPS = 0.001
-        self.FW_V_NOM = 0.9
-        self.FW_RANK_SPEEDS_2P = [0.9, 0.3]
-        self.FW_RANK_SPEEDS_3P = [0.9, 0.6, 0.3, 0.3]
+        self.FW_V_NOM = MAX_SPEED
+        self.FW_RANK_SPEEDS_2P = [MAX_SPEED, 0.5]
+        self.FW_RANK_SPEEDS_3P = [MAX_SPEED, 1.0, 0.5, 0.5]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
@@ -548,7 +580,7 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.6; self.ZONE_RADIUS = 0.20; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
+        self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
         self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
@@ -641,8 +673,19 @@ class Problem3DualZoneGuardianMux(Node):
         if not p:
             return False
         x, y = p
-        x_min, x_max, y_min, y_max = (-0.5, 2.7, -1.4, 1.8)  # 정규화된 값
-        return (x_min <= x <= x_max) and (y_min <= y <= y_max)
+
+        # big round box (기존)
+        x_min, x_max, y_min, y_max = SLOW_ZONES[1]   # (-0.5, 2.7, -1.4, 1.8) 와 동일
+        in_big = (x_min <= x <= x_max) and (y_min <= y <= y_max)
+
+        # cutout (좌표 기반)
+        cx_min = float(SLOW2_CUTOUT["x_min"])
+        cx_max = float(SLOW2_CUTOUT["x_max"])
+        cy_min = float(SLOW2_CUTOUT["y_min"])
+        cy_max = float(SLOW2_CUTOUT["y_max"])
+        in_cut = (cx_min <= x <= cx_max) and (cy_min <= y <= cy_max)
+
+        return in_big and (not in_cut)
 
 
     def _update_speed_est(self, vid, p):
