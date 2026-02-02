@@ -12,6 +12,8 @@ from geometry_msgs.msg import Accel, PoseStamped
 # 터미널 출력 즉시 확인
 sys.stdout.reconfigure(line_buffering=True)
 
+ROUND_STOP_CENTER = (1.50, 0)   # 네가 원하는 기준점
+
 # ============================================================
 # [설정] 파라미터
 # ============================================================
@@ -29,7 +31,7 @@ HV_DETECT_RADIUS = 0.12     # HV 감지 반경 (트리거용)
 # ============================================================
 # [정밀 정지 튜닝] StartZone 정지 보정 + 감속 램프
 # ============================================================
-STOP_LEAD_DIST = 0.30       # STOP 앞당기기
+STOP_LEAD_DIST = 0.3       # STOP 앞당기기
 STOP_RAMP_DIST = 0.80       # 감속 램프 길이
 STOP_MIN_VEL   = 0.05       # 정지 직전 최소 크리핑 속도
 
@@ -237,6 +239,10 @@ class VehicleController(Node):
         # ---------------------------------------------------------
         dist_to_start = self._get_min_dist(self.start_zone_points)
 
+        cx, cy = ROUND_STOP_CENTER
+        dist_to_center = math.hypot(self.curr_x - cx, self.curr_y - cy)
+
+
         # 1-1. 멀티 랩 리셋
         if dist_to_start > RESET_DISTANCE:
             self.stop_logic_disabled = False
@@ -249,7 +255,7 @@ class VehicleController(Node):
             stop_zero_dist  = ZONE_RADIUS + STOP_LEAD_DIST
             stop_ramp_start = stop_zero_dist + STOP_RAMP_DIST
 
-            if dist_to_start < stop_zero_dist:
+            if dist_to_center < 2.0:
                 # ★ StartZone 안(정지 구간) : HV 트리거 오기 전까지 -0.01로 잡아두기(+안전장치)
                 if self._check_hv_in_zone(self.start_trigger_points):
                     # 트리거 들어오면 출발 허가
