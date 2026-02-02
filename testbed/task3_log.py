@@ -521,7 +521,7 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
+        self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.25; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
         self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
@@ -727,14 +727,41 @@ class Problem3DualZoneGuardianMux(Node):
             if d<md: md=d
         return md
     
+    # def _hv_in_points(self, pts):
+    #     if not pts: return False, None
+    #     if self.hv19_active and self.hv19:
+    #         for x,y in pts:
+    #             if math.hypot(x-self.hv19[0], y-self.hv19[1]) < self.HV_DETECT_RADIUS: return True, 19
+    #     if self.hv20_active and self.hv20:
+    #         for x,y in pts:
+    #             if math.hypot(x-self.hv20[0], y-self.hv20[1]) < self.HV_DETECT_RADIUS: return True, 20
+    #     return False, None
+
     def _hv_in_points(self, pts):
         if not pts: return False, None
+
+        best = 999.0
+        who = None
+
         if self.hv19_active and self.hv19:
             for x,y in pts:
-                if math.hypot(x-self.hv19[0], y-self.hv19[1]) < self.HV_DETECT_RADIUS: return True, 19
+                d = math.hypot(x-self.hv19[0], y-self.hv19[1])
+                if d < best:
+                    best = d; who = 19
+                if d < self.HV_DETECT_RADIUS:
+                    print(f"[HV-HIT] HV19 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
+                    return True, 19
+
         if self.hv20_active and self.hv20:
             for x,y in pts:
-                if math.hypot(x-self.hv20[0], y-self.hv20[1]) < self.HV_DETECT_RADIUS: return True, 20
+                d = math.hypot(x-self.hv20[0], y-self.hv20[1])
+                if d < best:
+                    best = d; who = 20
+                if d < self.HV_DETECT_RADIUS:
+                    print(f"[HV-HIT] HV20 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
+                    return True, 20
+
+        print(f"[HV-MISS] best_d={best:.3f} (who={who}) >= R={self.HV_DETECT_RADIUS:.3f}")
         return False, None
 
     def _compute_hv_safety_limit(self, vid):
