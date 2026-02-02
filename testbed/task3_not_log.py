@@ -580,7 +580,7 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
+        self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.25; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
         self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
