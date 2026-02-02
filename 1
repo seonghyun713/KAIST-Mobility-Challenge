@@ -379,6 +379,11 @@ class Problem3DualZoneGuardianMux(Node):
         self.VEH_IDS = [1, 2, 3, 4]
         self.TOPICS = {vid: f"/CAV_{vid:02d}" for vid in self.VEH_IDS}
 
+        self.prev_use_round = {vid: False for vid in self.VEH_IDS}
+        self.switch_ramp_active = {vid: 0 for vid in self.VEH_IDS}
+        self.SWITCH_RAMP_TICKS = 12   # 12*0.05=0.6s 정도
+
+
         # Parameters
         self.V_NOM = 1.5
         self.RANK_SPEEDS_3P = [1.5, 0.9, 0.3, 0.4]
@@ -885,9 +890,28 @@ class Problem3DualZoneGuardianMux(Node):
                 self._apply_limit_ramp(vid, self.tgt_limit[vid], force_immediate=True, release_to=99.0)
                 continue
 
+            use_r = in_round.get(vid, False)
+
+            # 2) round 상태 전환 감지 (진입/이탈)
+            if use_r != self.prev_use_round[vid]:
+                # 전환 순간: 현재 사용 중인 src 속도로 cmd_limit "시드"를 잡고,
+                # 일정 ticks 동안만 램프 적용
+                self.switch_ramp_active[vid] = self.SWITCH_RAMP_TICKS
+
+                # 현재 출력에 가까운 값으로 cmd_limit 초기화 (툭 튀는거 방지)
+                # 지금 소스 기준으로 속도 읽기
+                src_now = self.round_raw[vid] if use_r else self.raw[vid]
+                self.cmd_limit[vid] = float(src_now.linear.x)
+            self.prev_use_round[vid] = use_r
+
             # 1) 회전교차로는 무조건 즉시 풀기 (예전처럼)
-            if in_round.get(vid, False):
-                self.cmd_limit[vid] = 99.0
+            if use_r:
+                if self.switch_ramp_active[vid] > 0:
+                    self.switch_ramp_active[vid] -= 1
+                    # 제한 해제(99)로 가는 "완만한" 램프
+                    self._apply_limit_ramp(vid, None, force_immediate=False, release_to=99.0)
+                else:
+                    self.cmd_limit[vid] = 99.0
                 continue
 
             # 2) 사지/합류만 램프 적용 (천천히 가속)
