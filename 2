@@ -12,7 +12,8 @@ from geometry_msgs.msg import Accel, PoseStamped
 # 터미널 출력 즉시 확인
 sys.stdout.reconfigure(line_buffering=True)
 
-ROUND_STOP_CENTER = (1.50, 0)   # 네가 원하는 기준점
+ROUND_STOP_CENTER = (1.70, 0)   # 네가 원하는 기준점
+ROUND_IN_DIST = 1.20   # 0.9~1.3 사이에서 환경에 맞게
 
 # ============================================================
 # [설정] 파라미터
@@ -291,18 +292,23 @@ class VehicleController(Node):
                 # (A) 멀리 있으면 정상 주행
                 target_vel_req = TARGET_VELOCITY
 
-        # 1-3. 출발 직후 39cm 거리 유지 로직
+        
+        # 1-3. 출발 직후 gap 체크 로직
         if self.is_start_gap_check_active:
-            if dist_to_start > ZONE_RADIUS:
-                self.is_start_gap_check_active = False
-                print(f"[GAP] Zone Exited (>ZONE_RADIUS). Gap Logic OFF    ", end='\r')
+            # (1) 회전교차로 '안'이 아니면 gap STOP을 아예 적용하지 않음
+            if dist_to_center > ROUND_IN_DIST:
+                # 들어가기 전엔 gap 체크를 "유지"만 하고 STOP은 안 걸도록
+                pass
             else:
+                # (2) 회전교차로 안에서만 앞차거리 체크
                 dist_hv = self._get_closest_hv_front()
                 if dist_hv < START_SAFETY_DIST:
                     target_vel_req = STOP_VELOCITY
-                    print(f"[GAP] Too Close ({dist_hv:.2f}m < {START_SAFETY_DIST:.2f}m) WAIT  ", end='\r')
-                else:
-                    pass
+                    
+            # 기존 OFF 조건(Zone 반경)은 그대로 두거나, 아래 해결2처럼 더 확실히 바꾸면 좋음
+            if dist_to_start > ZONE_RADIUS:
+                self.is_start_gap_check_active = False
+                print(f"[GAP] Zone Exited (>ZONE_RADIUS). Gap Logic OFF    ", end='\r')
 
         # ---------------------------------------------------------
         # [Logic 2] Exit Conflict (CAV 1, 2)  (※ HV 있을 때 -0.01 hold 추가)
