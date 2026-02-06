@@ -15,7 +15,7 @@ sys.stdout.reconfigure(line_buffering=True)
 # ============================================================
 # [설정] 파라미터
 # ============================================================
-TARGET_VELOCITY = 0.6       # 기본 주행 속도
+TARGET_VELOCITY = 1.5       # 기본 주행 속도
 CRAWL_VELOCITY  = 0.15      # 서행 속도
 STOP_VELOCITY   = -0.02       # 정지 속도
 BOOST_VELOCITY  = 1.5       # 탈출 속도
@@ -23,17 +23,17 @@ BOOST_VELOCITY  = 1.5       # 탈출 속도
 SLOW_VELOCITY   = 0.2       
 MAX_ACC_VELOCITY = 2.0      
 
-ZONE_RADIUS     = 0.2      # 구역 반경 (38cm)
+ZONE_RADIUS     = 0.3      # 구역 반경 (38cm)
 HV_DETECT_RADIUS = 0.12     # HV 감지 반경 (트리거용)
 
 # HV 감지 히스테리시스(깜빡임 방지): True가 한번 뜨면 HOLD_TICKS 동안 True 유지
 HV_HOLD_TICKS = 5   # tick=0.05s 기준 약 0.25초
 
 # 감가속도 제한
-ACCEL_STEP      = 0.05       
+ACCEL_STEP      = 0.05      
 DECEL_STEP      = 0.1       
-ACC_DIST_LIMIT  = 0.5      
-ACC_P_GAIN      = 2.5       
+ACC_DIST_LIMIT  = 0.6      
+ACC_P_GAIN      = 1.0       
 
 # 리셋 거리 (다음 바퀴 준비용)
 RESET_DISTANCE  = 2.2       
@@ -213,7 +213,7 @@ class VehicleController(Node):
         GATE_X, GATE_Y = 1.7, 0.0
         GATE_SLOW_DIST = 2.0
         GATE_RESET_DIST = 2.5
-        GATE_SLOW_VEL = 0.1
+        GATE_SLOW_VEL = 0.05
 
         dist_to_gate = math.hypot(self.curr_x - GATE_X, self.curr_y - GATE_Y)
 
@@ -239,35 +239,35 @@ class VehicleController(Node):
                 # 이미 통과 허가 난 상태면, 게이트 안에서도 속도 떨어뜨리지 않음
                 pass
 
-        # ---------------------------------------------------------
-        # [Logic 2] Exit Conflict (CAV 1, 2)
-        # ---------------------------------------------------------
-        if self.out_zone_points and self.danger_zone_points:
-            dist_to_out = self._get_min_dist(self.out_zone_points)
+        # # ---------------------------------------------------------
+        # # [Logic 2] Exit Conflict (CAV 1, 2)
+        # # ---------------------------------------------------------
+        # if self.out_zone_points and self.danger_zone_points:
+        #     dist_to_out = self._get_min_dist(self.out_zone_points)
             
-            # (A) 구역 내부
-            if dist_to_out < ZONE_RADIUS:
-                self.is_in_out_zone = True
-                self.boost_active = False
+        #     # (A) 구역 내부
+        #     if dist_to_out < ZONE_RADIUS:
+        #         self.is_in_out_zone = True
+        #         self.boost_active = False
 
-                if self._check_hv_in_zone_hold(self.danger_zone_points, 'hv_danger_hold'):
-                    target_vel_req = STOP_VELOCITY 
-                else:
-                    target_vel_req = CRAWL_VELOCITY 
+        #         if self._check_hv_in_zone_hold(self.danger_zone_points, 'hv_danger_hold'):
+        #             target_vel_req = STOP_VELOCITY 
+        #         else:
+        #             target_vel_req = CRAWL_VELOCITY 
 
-            # (B) 구역 탈출
-            else:
-                if self.is_in_out_zone: 
-                    self.is_in_out_zone = False
-                    self.boost_active = True
-                    self.boost_start_pos = (self.curr_x, self.curr_y)
+        #     # (B) 구역 탈출
+        #     else:
+        #         if self.is_in_out_zone: 
+        #             self.is_in_out_zone = False
+        #             self.boost_active = True
+        #             self.boost_start_pos = (self.curr_x, self.curr_y)
 
-                if self.boost_active:
-                    target_vel_req = BOOST_VELOCITY
-                    dist_boosted = math.hypot(self.curr_x - self.boost_start_pos[0], 
-                                              self.curr_y - self.boost_start_pos[1])
-                    if dist_boosted > EXIT_BOOST_DIST: 
-                        self.boost_active = False
+        #         if self.boost_active:
+        #             target_vel_req = BOOST_VELOCITY
+        #             dist_boosted = math.hypot(self.curr_x - self.boost_start_pos[0], 
+        #                                       self.curr_y - self.boost_start_pos[1])
+        #             if dist_boosted > EXIT_BOOST_DIST: 
+        #                 self.boost_active = False
 
         # ---------------------------------------------------------
         # [Logic 3] Smart ACC (CAV 3, 4)
@@ -327,13 +327,13 @@ class VehicleController(Node):
         while yaw_err < -math.pi: yaw_err += 2 * math.pi
 
         dt = 0.1
-        self.integral_error = max(-1.0, min(1.0, self.integral_error + yaw_err * dt))
+        self.integral_error = max(-2.0, min(2.0, self.integral_error + yaw_err * dt))
         p = CTRL_PARAMS["kp"] * yaw_err
         i = CTRL_PARAMS["ki"] * self.integral_error
         d = CTRL_PARAMS["kd"] * (yaw_err - self.prev_error) / dt
         cte = min_dist * CTRL_PARAMS["k_cte"] * (-1.0 if yaw_err < 0 else 1.0)
         
-        steer = max(-1.7, min(1.7, float(p + i + d + cte)))
+        steer = max(-2.0, min(2.0, float(p + i + d + cte)))
         self.prev_error = yaw_err
 
         cmd = Accel()
