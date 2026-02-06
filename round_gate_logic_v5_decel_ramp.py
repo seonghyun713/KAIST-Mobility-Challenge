@@ -15,7 +15,7 @@ sys.stdout.reconfigure(line_buffering=True)
 # ============================================================
 # [설정] 파라미터
 # ============================================================
-TARGET_VELOCITY = 1.5       # 기본 주행 속도
+TARGET_VELOCITY = 1.3       # 기본 주행 속도
 CRAWL_VELOCITY  = 0.15      # 서행 속도
 STOP_VELOCITY   = -0.02       # 정지 속도
 BOOST_VELOCITY  = 1.5       # 탈출 속도
@@ -38,11 +38,16 @@ ACC_P_GAIN      = 1.0
 # 리셋 거리 (다음 바퀴 준비용)
 RESET_DISTANCE  = 2.2       
 
+MIN_LA = 0.5
+LA_GAIN = 0.45
+     # 속도 스케일 (v * 0.45)
+
+
 # CAV 01, 02 출구 가속 거리
 # HV: 0.5, 1.0, 1.5 의 경우 0.48 이었음
 EXIT_BOOST_DIST = 0.5
 CTRL_PARAMS = {
-    "look_ahead": 0.50, 
+    "look_ahead": 1.2, 
     "kp": 6.0, 
     "ki": 0.05, 
     "kd": 1.0, 
@@ -211,7 +216,7 @@ class VehicleController(Node):
         # [Logic 1] 서행 zone
         # ---------------------------------------------------------
         GATE_X, GATE_Y = 1.7, 0.0
-        GATE_SLOW_DIST = 2.0
+        GATE_SLOW_DIST = 2.1
         GATE_RESET_DIST = 2.5
         GATE_SLOW_VEL = 0.05
 
@@ -315,10 +320,19 @@ class VehicleController(Node):
             d = math.hypot(px - self.curr_x, py - self.curr_y)
             if d < min_dist: min_dist = d; idx = i
         
+        # ✅ speed-based dynamic lookahead
+        active_look_ahead = max(
+            MIN_LA,
+            min(CTRL_PARAMS["look_ahead"], self.current_cmd_vel * LA_GAIN)
+        )
+
         target_idx = idx
         for i in range(idx, path_len):
-            if math.hypot(self.path[i][0] - self.curr_x, self.path[i][1] - self.curr_y) >= CTRL_PARAMS["look_ahead"]:
-                target_idx = i; break
+            if math.hypot(self.path[i][0] - self.curr_x,
+                        self.path[i][1] - self.curr_y) >= active_look_ahead:
+                target_idx = i
+                break
+
         
         tx, ty = self.path[target_idx]
         desired_yaw = math.atan2(ty - self.curr_y, tx - self.curr_x)
