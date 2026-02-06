@@ -17,7 +17,7 @@ sys.stdout.reconfigure(line_buffering=True)
 # ============================================================
 TARGET_VELOCITY = 0.6       # 기본 주행 속도
 CRAWL_VELOCITY  = 0.15      # 서행 속도
-STOP_VELOCITY   = 0.0       # 정지 속도
+STOP_VELOCITY   = -0.02       # 정지 속도
 BOOST_VELOCITY  = 1.5       # 탈출 속도
 
 SLOW_VELOCITY   = 0.15
