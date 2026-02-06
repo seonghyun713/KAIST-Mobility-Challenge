@@ -585,28 +585,28 @@ class Problem3DualZoneGuardianMux(Node):
 
         self.safety_cfg = {
             1: {
-                "start_zone": [(0.5,-0.108333)]
+                "start_zone": [(0.5,-0.108333)],
                 "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
                 "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_1_out_zone.csv")),
                 "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_2.csv")),
                 "stop_logic_disabled": False
             },
             2: {
-                "start_zone": [(1.558333,1.2)]
+                "start_zone": [(1.558333,1.2)],
                 "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
                 "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_2_out_zone.csv")),
                 "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_2.csv")),
                 "stop_logic_disabled": False
             },
             3: {
-                "start_zone": [(1.308202,1.35)]
+                "start_zone": [(1.308202,1.35)],
                 "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
                 "out_zone": [],
                 "danger_zone": [],
                 "stop_logic_disabled": False
             },
             4: {
-                "start_zone": [(0.35,-0.35833)]
+                "start_zone": [(0.35,-0.35833)],
                 "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
                 "out_zone": [],
                 "danger_zone": [],
