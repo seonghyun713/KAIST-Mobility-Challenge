@@ -127,11 +127,10 @@ STRAIGHT_PARAMS = {
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
 TICK_RATE = 0.05      # 50 Hz
-ACCEL_LIMIT = 3.0
+ACCEL_LIMIT = 2.0
 DECEL_LIMIT = 1.5
 
-# active lookahead min
-MIN_LA = 0.5
+
 
 # ============================================================
 # [COMMON: File Loaders]
