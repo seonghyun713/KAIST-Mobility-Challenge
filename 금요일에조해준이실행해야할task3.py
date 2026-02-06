@@ -26,10 +26,10 @@ CAV_LOGICAL_IDS = [1, 2, 3, 4]
 # Map: logical CAV id -> real topic number at the venue
 # Example: CAV1 uses /CAV_07, CAV2 uses /CAV_09, ...
 CAV_TOPIC_NUM = {
-    1: 4,
+    1: 28,
     2: 6,
-    3: 10,
-    4: 28,
+    3: 7,
+    4: 8,
 }
 
 # HV topics (role names -> actual topic name)
@@ -126,8 +126,8 @@ STRAIGHT_PARAMS = {
 # Vehicle Specs
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
-TICK_RATE = 0.02      # 50 Hz
-ACCEL_LIMIT = 0.8
+TICK_RATE = 0.05      # 50 Hz
+ACCEL_LIMIT = 3.0
 DECEL_LIMIT = 1.5
 
 # active lookahead min
@@ -337,10 +337,8 @@ class MapPredictionDriver(Node):
 
 
         # Find Look-ahead Point
-        #active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
+        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
         
-
-        active_look_ahead = max(MIN_LA,(min(params["look_ahead"], self.current_vel_cmd * 0.45)))
         
         target_idx = curr_idx
         for i in range(path_len):
