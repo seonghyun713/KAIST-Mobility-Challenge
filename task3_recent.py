@@ -3,6 +3,9 @@ import os
 import math
 import json
 import csv
+import time
+import numpy as np  # 추가됨 (행렬 연산용)
+from datetime import datetime
 
 import rclpy
 from rclpy.node import Node
@@ -12,28 +15,21 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from geometry_msgs.msg import Accel, PoseStamped, Twist
 from round import VehicleController as RoundController
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PATH_DIR = os.path.join(BASE_DIR, "path")
 
 # ============================================================
 # [TOPIC CONFIG] Change only here at the venue
 # ============================================================
-
-# Logical IDs used inside the algorithm (DO NOT change)
 CAV_LOGICAL_IDS = [1, 2, 3, 4]
 
-# Map: logical CAV id -> real topic number at the venue
-# Example: CAV1 uses /CAV_07, CAV2 uses /CAV_09, ...
 CAV_TOPIC_NUM = {
-    1: 28,
-    2: 6,
-    3: 7,
-    4: 8,
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
 }
 
-# HV topics (role names -> actual topic name)
-# If HV topic numbers change, edit here.
 HV_TOPICS = {
     "HV1": "/HV_19",
     "HV2": "/HV_20",
@@ -55,80 +51,56 @@ def cav_accel_round_raw_topic(logical_id: int) -> str:
 def hv_topic(role: str) -> str:
     return HV_TOPICS[role]
 
-
-
 # ============================================================
-# [1] Slow Zones Configuration (Fixed at 0.7 m/s)
+# [1] Slow Zones Configuration
 # ============================================================
 RAW_SLOW_ZONES = [
-    (-1, -4.6,  2.0, -2.0), # 사지교차로 범위
-    (-1,  2.7,  2.2, -1.4), # 회전교차로 범위
+    (-1.0, -4.0,  2.0, -2.0), # 사지교차로
+    (-1.0,  2.7,  2.2, -1.1), # 회전교차로
 ]
 
-# Normalize coordinates (min, max) for safety
 SLOW_ZONES = [
     (min(x1, x2), max(x1, x2), min(y1, y2), max(y1, y2))
     for (x1, x2, y1, y2) in RAW_SLOW_ZONES
 ]
 
 SLOW2_CUTOUT = {
-    "x_min": -0.50,
+    "x_min": -1.0,
     "x_max": 0.37,
     "y_min":  0.00,
-    "y_max":  1.80,
+    "y_max":  2.20,
 }
 
 SLOW_PARAMS = {
-    "vel": 1.5,          
+    "vel": 1.8,          
     "look_ahead": 0.50, 
     "kp": 6.0,          
     "ki": 0.045,
     "kd": 1.0,          
     "k_cte": 4.0
 }
-MAX_SPEED = 1.5
+MAX_SPEED = 1.8
+
+
 
 # ============================================================
-# [2] Speed Profiles (3-Stage Transmission)
+# [2] Speed Profiles
 # ============================================================
-
-# 1. Hard Curve (Low Speed, High Gain)
 HARD_PARAMS = {
-    "vel": 1.0,
-    "look_ahead": 0.60,
-    "kp": 6.0,
-    "ki": 0.045,
-    "kd": 1.0,
-    "k_cte": 3.0
+    "vel": 1.2, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
 }
-
-# 2. Easy Curve (Medium Speed)
 EASY_PARAMS = {
-    "vel": 1.5,
-    "look_ahead": 0.65, 
-    "kp": 6.0,
-    "ki": 0.05,
-    "kd": 1.0,
-    "k_cte": 3.0
+    "vel": 1.5, "look_ahead": 0.65, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
 }
-
-# 3. Straight (High Speed, Stability Focused)
 STRAIGHT_PARAMS = {
-    "vel": 1.8,
-    "look_ahead": 1.2,  # Increased for high speed
-    "kp": 2.0,          # Reduced to prevent oscillation
-    "ki": 0.002,        # Minimize integral windup
-    "kd": 2.5,          # Increased damping
-    "k_cte": 1.0
+    "vel": 1.8, "look_ahead": 1.2, "kp": 2.0, "ki": 0.002, "kd": 2.5, "k_cte": 1.0
 }
 
-# Vehicle Specs
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
-TICK_RATE = 0.05
-ACCEL_LIMIT = 1.5
+TICK_RATE = 0.05      # 50 Hz
+ACCEL_LIMIT = 3.0
 DECEL_LIMIT = 3.0
-
 
 # ============================================================
 # [COMMON: File Loaders]
@@ -141,14 +113,13 @@ def load_path_points(json_file):
     if not xs or not ys: return []
     return [(float(x), float(y)) for x, y in zip(xs, ys)]
 
-
 def load_zone_from_csv(filename):
     points = []
     if not filename or not os.path.exists(filename): return []
     try:
         with open(filename, "r") as f:
             reader = csv.reader(f)
-            next(reader, None) # Skip header
+            next(reader, None)
             for row in reader:
                 if row and len(row) >= 2:
                     try: points.append((float(row[0]), float(row[1])))
@@ -156,9 +127,8 @@ def load_zone_from_csv(filename):
     except: pass
     return points
 
-
 # ============================================================
-# [NODE] Map Prediction Driver (Lateral Control)
+# [NODE] Map Prediction Driver (Modified for Data Collection)
 # ============================================================
 class MapPredictionDriver(Node):
     def __init__(self, vehicle_id: int, path_filename: str):
@@ -168,65 +138,76 @@ class MapPredictionDriver(Node):
         self.logical_id = int(vehicle_id)
         self.TOPIC = cav_topic(self.logical_id)
 
+        # ----------------------------------------------------
+        # [DATA COLLECTION SETUP]
+        # ----------------------------------------------------
+        # 저장할 폴더 생성
+        self.log_dir = os.path.join(BASE_DIR, "csv_data")
+        os.makedirs(self.log_dir, exist_ok=True)
+        
+        # 파일명 (차량ID + 날짜시간)
+        timestamp_str = datetime.now().strftime("%m%d_%H%M%S")
+        self.csv_path = os.path.join(self.log_dir, f"veh_{self.vid}_{timestamp_str}.csv")
+        self.csv_file = open(self.csv_path, 'w', newline='')
+        self.writer = csv.writer(self.csv_file)
+
+        # 헤더 작성 (MLP 학습에 필요한 Feature들)
+        self.writer.writerow([
+            "timestamp", 
+            "x", "y", "yaw", "v_current",   # 현재 상태
+            "cte", "yaw_err",               # 에러 값
+            "look_ahead_dist",              # 파라미터 1
+            "target_x", "target_y",         # 목표 지점 (Global)
+            "target_local_x", "target_local_y", # 목표 지점 (Local - 중요!)
+            "kp", "ki", "kd", "k_cte",      # PID 파라미터 (Label이 될 수도, Feature가 될 수도 있음)
+            "mode_idx",                     # 0:STR, 1:EASY, 2:HARD, 3:ZONE
+            "in_slow_zone",                 # 교차로 여부 (Filter용)
+            "steer_cmd", "accel_cmd"        # [Target Label] 최종 출력값
+        ])
+        self.get_logger().info(f"💾 Logging started: {self.csv_path}")
+
+
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
 
-        # =========================
-        # LPF for D-term (yaw_err)
-        # =========================
-        self.yaw_err_f = 0.0        # filtered yaw error
-        self.prev_yaw_err_f = 0.0   # prev filtered yaw error
-
-        # 1차 LPF time constant (seconds) - 튜닝 파라미터
-        # 0.10~0.30 정도부터 시작 추천 (TICK=0.05 기준)
+        self.yaw_err_f = 0.0
+        self.prev_yaw_err_f = 0.0
         self.LPF_TAU = 0.18
-
-        # (옵션) D-term 자체 LPF
         self.dterm_f = 0.0
         self.D_LPF_TAU = 0.10
 
-
-        # Load Path
         self.path_pts = load_path_points(self.PATH_FILENAME)
         self.path_x = [p[0] for p in self.path_pts]
         self.path_y = [p[1] for p in self.path_pts]
 
         if not self.path_pts:
             self.get_logger().error(f"❌ [Car{self.vid}] Path missing: {self.PATH_FILENAME}")
-        else:
-            self.get_logger().info(f"✅ [Car{self.vid}] Loaded {len(self.path_pts)} pts (Ring Buffer Mode).")
 
-        # ROS Comm
         self.create_subscription(PoseStamped, self.TOPIC, self.pose_callback, qos_profile)
         self.accel_raw_pub = self.create_publisher(Accel, cav_accel_raw_topic(self.logical_id), 10)
 
-        # State Variables
         self.curr_x, self.curr_y, self.curr_yaw = 0.0, 0.0, 0.0
         self.got_pose = False
 
-        
         self.prev_err = 0.0
         self.int_err = 0.0
         self.last_time = self.get_clock().now()
         self._skip_dterm = 0
         
-        self.current_vel_cmd = 1.0
+        self.current_vel_cmd = 0.15
         self.mode = "HARD"
         self.avg_steer_signed = 0.0 
         self.log_counter = 0
-
         self.old_nearest_idx = 0
 
         self.create_timer(TICK_RATE, self.drive_loop)
 
-
     def pose_callback(self, msg):
         self.got_pose = True
         self.curr_yaw = float(msg.pose.orientation.z)
-        # Convert Center-of-Mass to Rear-Axle position
         self.curr_x = float(msg.pose.position.x) - (DIST_CENTER_TO_REAR * math.cos(self.curr_yaw))
         self.curr_y = float(msg.pose.position.y) - (DIST_CENTER_TO_REAR * math.sin(self.curr_yaw))
 
@@ -260,6 +241,14 @@ class MapPredictionDriver(Node):
         while angle < -math.pi: angle += 2.0 * math.pi
         return angle
 
+    # Local 좌표 변환 함수 (MLP 입력용)
+    def global_to_local(self, gx, gy, rx, ry, ryaw):
+        dx = gx - rx
+        dy = gy - ry
+        lx = dx * math.cos(ryaw) + dy * math.sin(ryaw)
+        ly = -dx * math.sin(ryaw) + dy * math.cos(ryaw)
+        return lx, ly
+
     def drive_loop(self):
         if not self.got_pose or not self.path_pts: return
 
@@ -268,44 +257,39 @@ class MapPredictionDriver(Node):
         self.last_time = now
         if dt <= 0.001 or dt > 0.05: return
 
-        # --------------------------------------------------------
-        # [Step 1] Zone & Parameter Selection
-        # --------------------------------------------------------
+        # 1. Zone & Params
         in_zone = self.is_in_slow_zone(self.curr_x, self.curr_y)
         
+        mode_idx = 2 # Default HARD
         if in_zone:
             params = SLOW_PARAMS
-            current_mode_str = "ZONE"
-            self.mode = "HARD" 
+            self.mode = "HARD"
             self.avg_steer_signed = 0.0
             self.int_err = 0.0
+            mode_idx = 3 # ZONE
         else:
-            if self.mode == "HARD": params = HARD_PARAMS
-            elif self.mode == "EASY": params = EASY_PARAMS
-            else: params = STRAIGHT_PARAMS
-            current_mode_str = self.mode
+            if self.mode == "HARD": 
+                params = HARD_PARAMS; mode_idx = 2
+            elif self.mode == "EASY": 
+                params = EASY_PARAMS; mode_idx = 1
+            else: 
+                params = STRAIGHT_PARAMS; mode_idx = 0
 
-        # --------------------------------------------------------
-        # [Step 2] Pure Pursuit (Ring Buffer Search)
-        # --------------------------------------------------------
+        # 2. Pure Pursuit Search
         path_len = len(self.path_pts)
         min_d = float('inf')
         curr_idx = self.old_nearest_idx
-        
-        # Local search window (-50 to +50 points)
         search_range = 50 
         found_in_window = False
 
         for offset in range(-search_range, search_range):
             check_idx = (self.old_nearest_idx + offset) % path_len
-            
             d = math.hypot(self.path_x[check_idx] - self.curr_x, self.path_y[check_idx] - self.curr_y)
             if d < min_d:
                 min_d = d
                 curr_idx = check_idx
                 found_in_window = True
 
-        # Global search fallback if off-track or initialized
         if not found_in_window or min_d > 5.0:
             min_d = float('inf')
             for i in range(path_len):
@@ -314,28 +298,19 @@ class MapPredictionDriver(Node):
         
         self.old_nearest_idx = curr_idx
 
-        # --------------------------------------------------------
-        # ✅ [Jump Detection] off-track이면 글로벌 재탐색 + integrator reset + D-term skip
-        # --------------------------------------------------------
         if min_d > 0.8:
             best_i = 0
             best_d = float("inf")
             for i in range(path_len):
                 d = math.hypot(self.path_x[i] - self.curr_x, self.path_y[i] - self.curr_y)
-                if d < best_d:
-                    best_d = d
-                    best_i = i
-
+                if d < best_d: best_d = d; best_i = i
             curr_idx = best_i
             self.old_nearest_idx = curr_idx
             self.int_err = 0.0
             self._skip_dterm = 1
             min_d = best_d
 
-
-        # Find Look-ahead Point
         active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
-        
         
         target_idx = curr_idx
         for i in range(path_len):
@@ -347,22 +322,14 @@ class MapPredictionDriver(Node):
         
         tx, ty = self.path_x[target_idx], self.path_y[target_idx]
 
-        # --------------------------------------------------------
-        # [Step 3] Vector CTE + PID Controller
-        # --------------------------------------------------------
+        # 3. PID Control
         desired_yaw = math.atan2(ty - self.curr_y, tx - self.curr_x)
         yaw_err = self.normalize_angle(desired_yaw - self.curr_yaw)
 
-        # --------------------------------------------------------
-        # ✅ [LPF] Filter yaw_err to stabilize D-term against pose noise
-        # --------------------------------------------------------
-        alpha = dt / (self.LPF_TAU + dt)  # 1st-order LPF coefficient
-        # angle wrapping 고려: 필터는 "차이"로 업데이트하는 게 안전
+        alpha = dt / (self.LPF_TAU + dt)
         err_delta = self.normalize_angle(yaw_err - self.yaw_err_f)
         self.yaw_err_f = self.normalize_angle(self.yaw_err_f + alpha * err_delta)
 
-
-        # Calculate Cross Track Error (CTE)
         path_dx = tx - self.path_x[curr_idx]
         path_dy = ty - self.path_y[curr_idx]
         
@@ -375,47 +342,7 @@ class MapPredictionDriver(Node):
             cte_sign = 1.0 if cross_prod > 0 else -1.0
             cte = min_d * cte_sign * params["k_cte"]
 
-
-        # # Calculate Cross Track Error (CTE) - tangent based (stable sign)
-        # path_len = len(self.path_pts)
-        # next_idx = (curr_idx + 1) % path_len
-
-        # px, py = self.path_x[curr_idx], self.path_y[curr_idx]
-        # nx, ny = self.path_x[next_idx], self.path_y[next_idx]
-
-        # # # Tangent vector of path at curr_idx
-        # t_x = nx - px
-        # t_y = ny - py
-        # t_norm = math.hypot(t_x, t_y)
-
-        # if t_norm < 1e-6:
-        #     cte = 0.0
-        # else:
-        #     # Vector from path point to car
-        #     c_x = self.curr_x - px
-        #     c_y = self.curr_y - py
-
-        #     # signed distance from path (left/right)
-        #     signed_cte = (t_x * c_y - t_y * c_x) / t_norm
-
-        #     # clamp to suppress spikes from localization jitter
-        #     cte_clip = 0.25 if self.mode in ["HARD","EASY"] else 0.6
-        #     signed_cte = max(-cte_clip, min(cte_clip, signed_cte))
-
-
-        #     cte = signed_cte * params["k_cte"]
-
-        #     # ✅ 직진(STRATGT)에서만 CTE kill
-        #     if self.mode == "STRAIGHT":
-        #         cte = 0.0
-
-
-
-
-
-        # PID Calculation
         self.int_err = max(-2.0, min(2.0, self.int_err + yaw_err * dt))
-        
         p = params["kp"] * yaw_err
         i_term = params["ki"] * self.int_err
         if self._skip_dterm > 0:
@@ -426,33 +353,22 @@ class MapPredictionDriver(Node):
             d_term_raw = params["kd"] * d_error_f / dt
 
         self.prev_yaw_err_f = self.yaw_err_f
-
-        # (옵션) D-term LPF 한번 더 (더 부드럽게)
         d_alpha = dt / (self.D_LPF_TAU + dt)
         self.dterm_f = (1.0 - d_alpha) * self.dterm_f + d_alpha * d_term_raw
         d_term = self.dterm_f
 
-
-
-
         final_steer = max(-2.0, min(2.0, float(p + i_term + d_term + cte)))
         self.prev_err = yaw_err
 
-        # --------------------------------------------------------
-        # [Step 4] Mode Switching & Speed Control
-        # --------------------------------------------------------
+        # 4. Mode Switching & Speed
         if in_zone:
             target_v = SLOW_PARAMS["vel"]
         else:
-            # Low-pass filter on steering
             self.avg_steer_signed = 0.85 * self.avg_steer_signed + 0.15 * final_steer
             filter_val = abs(self.avg_steer_signed)
-
             next_mode = self.mode 
             if abs(final_steer) > 0.90:
                 next_mode = "HARD"
-                # self.avg_steer_signed 강제 주입 삭제
-
             else:
                 if self.mode == "STRAIGHT":
                     if filter_val > 0.30: next_mode = "EASY"
@@ -462,27 +378,57 @@ class MapPredictionDriver(Node):
                 elif self.mode == "HARD":
                     if filter_val < 0.70: next_mode = "EASY"
             
-            # Anti-Windup on mode transition
             if (self.mode == "HARD" and next_mode == "EASY") or \
                (self.mode == "EASY" and next_mode == "STRAIGHT"):
                 self.int_err = 0.0
-
             self.mode = next_mode
+            
             if self.mode == "HARD": target_v = HARD_PARAMS["vel"]
             elif self.mode == "EASY": target_v = EASY_PARAMS["vel"]
             else: target_v = STRAIGHT_PARAMS["vel"]
 
-        # Speed Ramp
         if target_v > self.current_vel_cmd:
             self.current_vel_cmd = min(target_v, self.current_vel_cmd + ACCEL_LIMIT * dt)
         else:
             self.current_vel_cmd = max(target_v, self.current_vel_cmd - DECEL_LIMIT * dt)
 
+        # ----------------------------------------------------
+        # [DATA COLLECTION WRITING]
+        # ----------------------------------------------------
+        # Local Coordinates 계산 (차량 기준 목표점)
+        lx, ly = self.global_to_local(tx, ty, self.curr_x, self.curr_y, self.curr_yaw)
+        
+        row_data = [
+            time.time(),                        # timestamp
+            round(self.curr_x, 4),              # x
+            round(self.curr_y, 4),              # y
+            round(self.curr_yaw, 4),            # yaw
+            round(self.current_vel_cmd, 3),     # v_current (현재 명령 속도)
+            round(cte, 4),                      # cte
+            round(yaw_err, 4),                  # yaw_err
+            round(active_look_ahead, 3),        # look_ahead_dist
+            round(tx, 4),                       # target_x
+            round(ty, 4),                       # target_y
+            round(lx, 4),                       # target_local_x (입력 Feature 추천)
+            round(ly, 4),                       # target_local_y (입력 Feature 추천)
+            params["kp"], params["ki"], params["kd"], params["k_cte"],
+            mode_idx,                           # mode index
+            1 if in_zone else 0,                # in_slow_zone (Filter용)
+            round(final_steer, 4),              # steer_cmd (Label)
+            round(self.current_vel_cmd, 3)      # accel_cmd (Label - 사실상 속도)
+        ]
+        self.writer.writerow(row_data)
+        # ----------------------------------------------------
+
         cmd = Accel()
         cmd.linear.x = float(self.current_vel_cmd)
         cmd.angular.z = float(final_steer)
         self.accel_raw_pub.publish(cmd)
-
+    
+    # 소멸자: 파일 닫기
+    def destroy_node(self):
+        self.csv_file.close()
+        super().destroy_node()
 
 # ============================================================
 # [NODE] Dual Zone Guardian Mux (Safety Controller)
@@ -497,8 +443,8 @@ class Problem3DualZoneGuardianMux(Node):
 
         # Parameters
         self.V_NOM = MAX_SPEED
-        self.RANK_SPEEDS_3P = [MAX_SPEED, 1.0, 0.5, 0.3]
-        self.RANK_SPEEDS_2P = [MAX_SPEED, 0.5]
+        self.RANK_SPEEDS_3P = [MAX_SPEED, 1.0, 0.2, 0.2]
+        self.RANK_SPEEDS_2P = [MAX_SPEED, 0.2]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
@@ -508,16 +454,16 @@ class Problem3DualZoneGuardianMux(Node):
         self.EPS = 0.001
         self.HYSTERESIS_N = 5
 
-        self.TICK = 0.02
-        self.RAMP_DOWN_PER_SEC = 1.5
-        self.RAMP_UP_PER_SEC = 0.25
+        self.TICK = 0.05
+        self.RAMP_DOWN_PER_SEC = 3.0
+        self.RAMP_UP_PER_SEC = 0.40
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
 
         # =========================
         # HOLD (감속 유지) 설정
         # =========================
-        self.HOLD_TICKS = 30  # 감속 유지 시간 (tick 단위)
+        self.HOLD_TICKS = 20  # 감속 유지 시간 (tick 단위)
         self.hold_cnt = {vid: 0 for vid in self.VEH_IDS}
         self.hold_limit = {vid: None for vid in self.VEH_IDS}  # 마지막으로 걸린 제한값 저장
 
@@ -556,8 +502,8 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_APPROACH_N = 3
         self.FW_EPS = 0.001
         self.FW_V_NOM = MAX_SPEED
-        self.FW_RANK_SPEEDS_2P = [MAX_SPEED, 0.5]
-        self.FW_RANK_SPEEDS_3P = [MAX_SPEED, 1.0, 0.5, 0.5]
+        self.FW_RANK_SPEEDS_2P = [MAX_SPEED, 0.2]
+        self.FW_RANK_SPEEDS_3P = [MAX_SPEED, 1.0, 0.2, 0.2]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
@@ -575,7 +521,7 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.6; self.ZONE_RADIUS = 0.2; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
+        self.TARGET_VELOCITY = 1.3; self.ZONE_RADIUS = 0.2; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
         self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
         self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
@@ -663,7 +609,7 @@ class Problem3DualZoneGuardianMux(Node):
 
     
     def _dist(self, p, c): return math.hypot(p[0] - c[0], p[1] - c[1])
-    
+
     def _in_round_box(self, p):
         if not p:
             return False
@@ -781,14 +727,41 @@ class Problem3DualZoneGuardianMux(Node):
             if d<md: md=d
         return md
     
+    # def _hv_in_points(self, pts):
+    #     if not pts: return False, None
+    #     if self.hv19_active and self.hv19:
+    #         for x,y in pts:
+    #             if math.hypot(x-self.hv19[0], y-self.hv19[1]) < self.HV_DETECT_RADIUS: return True, 19
+    #     if self.hv20_active and self.hv20:
+    #         for x,y in pts:
+    #             if math.hypot(x-self.hv20[0], y-self.hv20[1]) < self.HV_DETECT_RADIUS: return True, 20
+    #     return False, None
+
     def _hv_in_points(self, pts):
         if not pts: return False, None
+
+        best = 999.0
+        who = None
+
         if self.hv19_active and self.hv19:
             for x,y in pts:
-                if math.hypot(x-self.hv19[0], y-self.hv19[1]) < self.HV_DETECT_RADIUS: return True, 19
+                d = math.hypot(x-self.hv19[0], y-self.hv19[1])
+                if d < best:
+                    best = d; who = 19
+                if d < self.HV_DETECT_RADIUS:
+                    print(f"[HV-HIT] HV19 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
+                    return True, 19
+
         if self.hv20_active and self.hv20:
             for x,y in pts:
-                if math.hypot(x-self.hv20[0], y-self.hv20[1]) < self.HV_DETECT_RADIUS: return True, 20
+                d = math.hypot(x-self.hv20[0], y-self.hv20[1])
+                if d < best:
+                    best = d; who = 20
+                if d < self.HV_DETECT_RADIUS:
+                    print(f"[HV-HIT] HV20 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
+                    return True, 20
+
+        print(f"[HV-MISS] best_d={best:.3f} (who={who}) >= R={self.HV_DETECT_RADIUS:.3f}")
         return False, None
 
     def _compute_hv_safety_limit(self, vid):
@@ -825,7 +798,7 @@ class Problem3DualZoneGuardianMux(Node):
                 self.prev_for_dist[vid] = (p[0], p[1])
                 self.dist_since_lap[vid] = 0.0
                 self.lap_armed[vid] = False  # must go out first
-                print(f"[LAP_INIT] CAV{vid} start_point=({p[0]:.2f},{p[1]:.2f})")
+                # print(f"[LAP_INIT] CAV{vid} start_point=({p[0]:.2f},{p[1]:.2f})")
                 continue
 
             sp = self.start_point[vid]
@@ -854,7 +827,7 @@ class Problem3DualZoneGuardianMux(Node):
                     self.last_lap_time[vid] = now
                     self.dist_since_lap[vid] = 0.0
                     self.lap_armed[vid] = False
-                    print(f"[LAP] CAV{vid} -> {self.lap_cnt[vid]}/{self.TARGET_LAPS}")
+                    # print(f"[LAP] CAV{vid} -> {self.lap_cnt[vid]}/{self.TARGET_LAPS}")
 
 
     def _print_lap_status(self):
@@ -1069,10 +1042,14 @@ class Problem3DualZoneGuardianMux(Node):
 
 
         self._update_laps()
-        self._lap_log_cnt += 1
-        if self._lap_log_cnt % self.LAP_LOG_PERIOD == 0:
-            self._print_lap_status()
-            self._print_cav_status()
+
+        #####################
+        # Update Laps log 
+        #####################
+        # self._lap_log_cnt += 1
+        # if self._lap_log_cnt % self.LAP_LOG_PERIOD == 0:
+        #     self._print_lap_status()
+        #     self._print_cav_status()
 
 
 
@@ -1090,10 +1067,38 @@ def main(args=None):
     # start_zone/start_trigger/out_zone/danger_zone 경로는 round_main.py가 기대하는 인자 그대로 넣어야 함
     p = lambda name: os.path.join(PATH_DIR, name)
     round_nodes = [
-        RoundController(1, p("path3_1.json"), p("path3_1_zone.csv"), p("path_hv_3_1.csv"), p("path3_1_out_zone.csv"), p("path_hv_3_2.csv")),
-        RoundController(2, p("path3_2.json"), p("path3_2_zone.csv"), p("path_hv_2_1.csv"), p("path3_2_out_zone.csv"), p("path_hv_2_2.csv")),
-        RoundController(3, p("path3_3.json"), p("path3_3_zone.csv"), p("path_hv_2_1.csv"), None, p("path_hv_2_2.csv")),
-        RoundController(4, p("path3_4.json"), p("path3_4_zone.csv"), p("path_hv_3_1.csv"), None, p("path_hv_3_2.csv")),
+        RoundController(
+            1, p("path3_1.json"), p("path3_1_zone.csv"), p("path_hv_3_1.csv"),
+            p("path3_1_out_zone.csv"), p("path_hv_3_2.csv"),
+            pose_topic=cav_topic(1),
+            pub_topic=cav_accel_round_raw_topic(1),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
+        RoundController(
+            2, p("path3_2.json"), p("path3_2_zone.csv"), p("path_hv_2_1.csv"),
+            p("path3_2_out_zone.csv"), p("path_hv_2_2.csv"),
+            pose_topic=cav_topic(2),
+            pub_topic=cav_accel_round_raw_topic(2),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
+        RoundController(
+            3, p("path3_3.json"), p("path3_3_zone.csv"), p("path_hv_2_1.csv"),
+            None, p("path_hv_2_2.csv"),
+            pose_topic=cav_topic(3),
+            pub_topic=cav_accel_round_raw_topic(3),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
+        RoundController(
+            4, p("path3_4.json"), p("path3_4_zone.csv"), p("path_hv_3_1.csv"),
+            None, p("path_hv_3_2.csv"),
+            pose_topic=cav_topic(4),
+            pub_topic=cav_accel_round_raw_topic(4),
+            hv1_topic=hv_topic("HV1"),
+            hv2_topic=hv_topic("HV2"),
+        ),
     ]
 
 
