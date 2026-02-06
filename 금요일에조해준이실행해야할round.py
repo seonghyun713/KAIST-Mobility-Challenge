@@ -509,7 +509,7 @@ class VehicleController(Node):
             yaw_err += 2 * math.pi
 
         dt = 0.1
-        self.integral_error = max(-1.0, min(1.0, self.integral_error + yaw_err * dt))
+        self.integral_error = max(-1.5, min(1.5, self.integral_error + yaw_err * dt))
         p = CTRL_PARAMS["kp"] * yaw_err
         i = CTRL_PARAMS["ki"] * self.integral_error
         d = CTRL_PARAMS["kd"] * (yaw_err - self.prev_error) / dt
