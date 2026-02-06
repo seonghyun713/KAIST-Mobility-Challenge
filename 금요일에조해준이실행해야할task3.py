@@ -592,7 +592,7 @@ class Problem3DualZoneGuardianMux(Node):
                 "stop_logic_disabled": False
             },
             2: {
-                "start_zone": (1.558333,1.2)]
+                "start_zone": [(1.558333,1.2)]
                 "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
                 "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_2_out_zone.csv")),
                 "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_2.csv")),
