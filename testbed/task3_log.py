@@ -527,36 +527,36 @@ class Problem3DualZoneGuardianMux(Node):
         # self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
         # self.create_subscription(PoseStamped, hv_topic("HV2"), self._cb_hv20, qos)
 
-        self.safety_cfg = {
-            1: {
-                "start_zone": [],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
-                "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_1_out_zone.csv")),
-                "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_2.csv")),
-                "stop_logic_disabled": False
-            },
-            2: {
-                "start_zone": [],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
-                "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_2_out_zone.csv")),
-                "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_2.csv")),
-                "stop_logic_disabled": False
-            },
-            3: {
-                "start_zone": [],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
-                "out_zone": [],
-                "danger_zone": [],
-                "stop_logic_disabled": False
-            },
-            4: {
-                "start_zone": [],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
-                "out_zone": [],
-                "danger_zone": [],
-                "stop_logic_disabled": False
-            },
-        }
+        # self.safety_cfg = {
+        #     1: {
+        #         "start_zone": [],
+        #         "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
+        #         "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_1_out_zone.csv")),
+        #         "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_2.csv")),
+        #         "stop_logic_disabled": False
+        #     },
+        #     2: {
+        #         "start_zone": [],
+        #         "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
+        #         "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_2_out_zone.csv")),
+        #         "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_2.csv")),
+        #         "stop_logic_disabled": False
+        #     },
+        #     3: {
+        #         "start_zone": [],
+        #         "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
+        #         "out_zone": [],
+        #         "danger_zone": [],
+        #         "stop_logic_disabled": False
+        #     },
+        #     4: {
+        #         "start_zone": [],
+        #         "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
+        #         "out_zone": [],
+        #         "danger_zone": [],
+        #         "stop_logic_disabled": False
+        #     },
+        # }
 
         self.create_timer(self.TICK, self.tick)
 
