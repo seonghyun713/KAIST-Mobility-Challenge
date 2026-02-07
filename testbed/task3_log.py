@@ -87,7 +87,7 @@ MAX_SPEED = 1.5
 # [2] Speed Profiles
 # ============================================================
 HARD_PARAMS = {
-    "vel": 1.0, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
+    "vel": 1.2, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
 }
 EASY_PARAMS = {
     "vel": 1.3, "look_ahead": 0.65, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
@@ -99,8 +99,8 @@ STRAIGHT_PARAMS = {
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
 TICK_RATE = 0.02      # 50 Hz
-ACCEL_LIMIT = 0.8
-DECEL_LIMIT = 1.5
+ACCEL_LIMIT = 1.5
+DECEL_LIMIT = 2.0
 
 # ============================================================
 # [COMMON: File Loaders]
