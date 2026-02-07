@@ -1068,7 +1068,7 @@ def main(args=None):
     p = lambda name: os.path.join(PATH_DIR, name)
     round_nodes = [
         RoundController(
-            1, p("path3_1.json"), p(None), p("path_hv_3_1.csv"),
+            1, p("path3_1.json"), None, p("path_hv_3_1.csv"),
             p("path3_1_out_zone.csv"), p("path_hv_3_2.csv"),
             pose_topic=cav_topic(1),
             pub_topic=cav_accel_round_raw_topic(1),
@@ -1076,7 +1076,7 @@ def main(args=None):
             hv2_topic=hv_topic("HV2"),
         ),
         RoundController(
-            2, p("path3_2.json"), p(None), p("path_hv_2_1.csv"),
+            2, p("path3_2.json"), None, p("path_hv_2_1.csv"),
             p("path3_2_out_zone.csv"), p("path_hv_2_2.csv"),
             pose_topic=cav_topic(2),
             pub_topic=cav_accel_round_raw_topic(2),
@@ -1084,7 +1084,7 @@ def main(args=None):
             hv2_topic=hv_topic("HV2"),
         ),
         RoundController(
-            3, p("path3_3.json"), p(None), p("path_hv_2_1.csv"),
+            3, p("path3_3.json"), None, p("path_hv_2_1.csv"),
             None, p("path_hv_2_2.csv"),
             pose_topic=cav_topic(3),
             pub_topic=cav_accel_round_raw_topic(3),
@@ -1092,7 +1092,7 @@ def main(args=None):
             hv2_topic=hv_topic("HV2"),
         ),
         RoundController(
-            4, p("path3_4.json"), p(None), p("path_hv_3_1.csv"),
+            4, p("path3_4.json"), None, p("path_hv_3_1.csv"),
             None, p("path_hv_3_2.csv"),
             pose_topic=cav_topic(4),
             pub_topic=cav_accel_round_raw_topic(4),
