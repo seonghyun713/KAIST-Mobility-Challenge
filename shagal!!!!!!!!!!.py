@@ -53,7 +53,7 @@ SLOW_PARAMS = {
 
 # 1. Hard Curve (Low Speed, High Gain)
 HARD_PARAMS = {
-    "vel": 1.0,
+    "vel": 1.2,
     "look_ahead": 0.56,
     "kp": 6.0,
     "ki": 0.045,
