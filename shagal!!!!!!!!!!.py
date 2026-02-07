@@ -21,8 +21,8 @@ PATH_DIR = os.path.join(BASE_DIR, "path")
 # [1] Slow Zones Configuration (Fixed at 0.7 m/s)
 # ============================================================
 RAW_SLOW_ZONES = [
-    (-1.0, -4.6,  2.0, -2.0), # 사지교차로 범위
-    ( -1.0,  2.7,  3.0, -1.1), # 회전교차로 범위
+    (-1.0, -4.0,  2.0, -2.0), # 사지교차로 범위
+    ( -1.0,  2.7,  2.2, -1.1), # 회전교차로 범위
 ]
 
 # Normalize coordinates (min, max) for safety
@@ -35,11 +35,11 @@ SLOW2_CUTOUT = {
     "x_min": -1.0,
     "x_max": 0.37,
     "y_min":  0.00,
-    "y_max":  3.00,
+    "y_max":  2.20,
 }
 
 SLOW_PARAMS = {
-    "vel": 1.5,          
+    "vel": 1.8,          
     "look_ahead": 0.50, 
     "kp": 6.0,          
     "ki": 0.045,
@@ -58,12 +58,12 @@ HARD_PARAMS = {
     "kp": 6.0,
     "ki": 0.045,
     "kd": 1.0,
-    "k_cte": 5.0
+    "k_cte": 6.0
 }
 
 # 2. Easy Curve (Medium Speed)
 EASY_PARAMS = {
-    "vel": 1.3,
+    "vel": 1.5,
     "look_ahead": 0.60, 
     "kp": 6.0,
     "ki": 0.05,
@@ -85,8 +85,8 @@ STRAIGHT_PARAMS = {
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
 TICK_RATE = 0.05
-ACCEL_LIMIT = 0.8
-DECEL_LIMIT = 1.5
+ACCEL_LIMIT = 3.0
+DECEL_LIMIT = 2.5
 
 
 # ============================================================
@@ -276,7 +276,7 @@ class MapPredictionDriver(Node):
 
 
         # Find Look-ahead Point
-        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
+        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.5)
         
         target_idx = curr_idx
         for i in range(path_len):
@@ -385,9 +385,9 @@ class Problem3DualZoneGuardianMux(Node):
 
 
         # Parameters
-        self.V_NOM = 1.5
-        self.RANK_SPEEDS_3P = [1.5, 0.9, 0.3, 0.4]
-        self.RANK_SPEEDS_2P = [1.5, 0.3]
+        self.V_NOM = 1.8
+        self.RANK_SPEEDS_3P = [1.8, 1.0, 0.2, 0.4]
+        self.RANK_SPEEDS_2P = [1.8, 0.2]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
@@ -398,8 +398,8 @@ class Problem3DualZoneGuardianMux(Node):
         self.HYSTERESIS_N = 5
 
         self.TICK = 0.05
-        self.RAMP_DOWN_PER_SEC = 1.5
-        self.RAMP_UP_PER_SEC = 0.3
+        self.RAMP_DOWN_PER_SEC = 3.0
+        self.RAMP_UP_PER_SEC = 0.4
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
         
@@ -442,9 +442,9 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_HYSTERESIS_N = 10
         self.FW_APPROACH_N = 2
         self.FW_EPS = 0.001
-        self.FW_V_NOM = 1.5
-        self.FW_RANK_SPEEDS_2P = [1.5, 0.3]
-        self.FW_RANK_SPEEDS_3P = [1.5, 0.9, 0.3, 0.4]
+        self.FW_V_NOM = 1.8
+        self.FW_RANK_SPEEDS_2P = [1.8, 0.2]
+        self.FW_RANK_SPEEDS_3P = [1.8, 1.0, 0.2, 0.2]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
@@ -461,43 +461,7 @@ class Problem3DualZoneGuardianMux(Node):
             frozenset([(1, "S"), (4, "W")]), frozenset([(2, "E"), (4, "W")])
         ]
 
-        # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.6; self.ZONE_RADIUS = 0.20; self.HV_DETECT_RADIUS = 0.12; self.RESET_DISTANCE = 2.2
-        self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
-        self.create_subscription(PoseStamped, "/HV_19", self._cb_hv19, qos)
-        self.create_subscription(PoseStamped, "/HV_20", self._cb_hv20, qos)
-
-        self.safety_cfg = {
-            1: {
-                "start_zone": [(0.356667,-0.108333)],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
-                "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_1_out_zone.csv")),
-                "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_2.csv")),
-                "stop_logic_disabled": False
-            },
-            2: {
-                "start_zone": [(1.558333,1.355)],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
-                "out_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path3_2_out_zone.csv")),
-                "danger_zone": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_2.csv")),
-                "stop_logic_disabled": False
-            },
-            3: {
-                "start_zone": [(1.308202,1.355)],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_2_1.csv")),
-                "out_zone": [],
-                "danger_zone": [],
-                "stop_logic_disabled": False
-            },
-            4: {
-                "start_zone": [(0.356667,-0.35833)],
-                "start_trigger": load_zone_from_csv(os.path.join(PATH_DIR, "path_hv_3_1.csv")),
-                "out_zone": [],
-                "danger_zone": [],
-                "stop_logic_disabled": False
-            },
-        }
 
         self.create_timer(self.TICK, self.tick)
 
@@ -527,8 +491,7 @@ class Problem3DualZoneGuardianMux(Node):
 
 
     # --- Callbacks & Helpers ---
-    def _cb_hv19(self, msg): self.hv19 = (float(msg.pose.position.x), float(msg.pose.position.y)); self.hv19_active = True
-    def _cb_hv20(self, msg): self.hv20 = (float(msg.pose.position.x), float(msg.pose.position.y)); self.hv20_active = True
+    
     def _make_zone_state(self, c): return {"CENTER": c, "active": {v:False for v in self.VEH_IDS}, "outside_ticks": {v:0 for v in self.VEH_IDS}, "prev_dist": {v:None for v in self.VEH_IDS}, "approach_cnt": {v:0 for v in self.VEH_IDS}, "approaching": {v:False for v in self.VEH_IDS}}
     
     def _make_pose_cb(self, vid):
@@ -656,44 +619,7 @@ class Problem3DualZoneGuardianMux(Node):
             des = speeds[min(i, len(speeds)-1)]; limits[vid] = des if des < self.V_NOM else None
         return limits, in_eff, True
 
-    # --- HV Safety Logic ---
-    def _min_dist_to_points(self, vid, pts):
-        p = self.pose.get(vid)
-        if not p or not pts: return 999.0
-        md = 999.0
-        for x,y in pts:
-            d = math.hypot(x-p[0], y-p[1])
-            if d<md: md=d
-        return md
-    
-    def _hv_in_points(self, pts):
-        if not pts: return False, None
-        if self.hv19_active and self.hv19:
-            for x,y in pts:
-                if math.hypot(x-self.hv19[0], y-self.hv19[1]) < self.HV_DETECT_RADIUS: return True, 19
-        if self.hv20_active and self.hv20:
-            for x,y in pts:
-                if math.hypot(x-self.hv20[0], y-self.hv20[1]) < self.HV_DETECT_RADIUS: return True, 20
-        return False, None
-
-    def _compute_hv_safety_limit(self, vid):
-        cfg = self.safety_cfg.get(vid); 
-        if not cfg: return None, False, None
-        s_zone = cfg.get("start_zone", []); s_trig = cfg.get("start_trigger", [])
-        d_start = self._min_dist_to_points(vid, s_zone)
-        if cfg["stop_logic_disabled"]:
-            if d_start > self.RESET_DISTANCE: cfg["stop_logic_disabled"] = False
-        else:
-            if d_start < self.ZONE_RADIUS:
-                hit, w = self._hv_in_points(s_trig)
-                if hit: cfg["stop_logic_disabled"] = True
-                else: return self.STOP_VELOCITY, True, "START_WAIT"
-        o_zone = cfg.get("out_zone", []); d_zone = cfg.get("danger_zone", [])
-        if o_zone and d_zone:
-            if self._min_dist_to_points(vid, o_zone) < self.ZONE_RADIUS:
-                hit, w = self._hv_in_points(d_zone)
-                if hit: return self.STOP_VELOCITY, True, f"EXIT_YIELD(HV_{w})"
-        return None, False, None
+   
 
     def _update_laps(self):
         now = self.get_clock().now().nanoseconds / 1e9
@@ -852,8 +778,6 @@ class Problem3DualZoneGuardianMux(Node):
 
         # 3. HV Safety & Merge Limits
         hv_lim = {v:None for v in self.VEH_IDS}; hv_force = {v:False for v in self.VEH_IDS}; hv_r = {v:None for v in self.VEH_IDS}
-        for vid in self.VEH_IDS:
-            l, f, r = self._compute_hv_safety_limit(vid); hv_lim[vid]=l; hv_force[vid]=f; hv_r[vid]=r
         
         for vid in self.VEH_IDS:
             cands = []
@@ -959,10 +883,10 @@ def main(args=None):
     # start_zone/start_trigger/out_zone/danger_zone 경로는 round_main.py가 기대하는 인자 그대로 넣어야 함
     p = lambda name: os.path.join(PATH_DIR, name)
     round_nodes = [
-        RoundController(1, p("path3_1.json"), [(0.356667,-0.108333)], p("path_hv_3_1.csv"), p("path3_1_out_zone.csv"), p("path_hv_3_2.csv")),
-        RoundController(2, p("path3_2.json"), [(1.558333,1.355)], p("path_hv_2_1.csv"), p("path3_2_out_zone.csv"), p("path_hv_2_2.csv")),
-        RoundController(3, p("path3_3.json"), [(1.308202,1.355)], p("path_hv_2_1.csv"), None,                     p("path_hv_2_1.csv")),
-        RoundController(4, p("path3_4.json"), [(0.356667,-0.35833)], p("path_hv_3_1.csv"), None,                     p("path_hv_3_1.csv")),
+        RoundController(1, p("path3_1.json"), None, p("path_hv_3_1.csv"), p("path3_1_out_zone.csv"), p("path_hv_3_2.csv")),
+        RoundController(2, p("path3_2.json"), None, p("path_hv_2_1.csv"), p("path3_2_out_zone.csv"), p("path_hv_2_2.csv")),
+        RoundController(3, p("path3_3.json"), None, p("path_hv_2_1.csv"), None,                     p("path_hv_2_1.csv")),
+        RoundController(4, p("path3_4.json"), None, p("path_hv_3_1.csv"), None,                     p("path_hv_3_1.csv")),
     ]
 
     guardian = Problem3DualZoneGuardianMux()
