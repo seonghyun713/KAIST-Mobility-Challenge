@@ -15,7 +15,7 @@ sys.stdout.reconfigure(line_buffering=True)
 # ============================================================
 # [설정] 파라미터
 # ============================================================
-TARGET_VELOCITY = 1.3       # 기본 주행 속도
+TARGET_VELOCITY = 1.4       # 기본 주행 속도
 CRAWL_VELOCITY  = 0.15      # 서행 속도
 STOP_VELOCITY   = -0.02       # 정지 속도
 BOOST_VELOCITY  = 2.0       # 탈출 속도
@@ -23,15 +23,15 @@ BOOST_VELOCITY  = 2.0       # 탈출 속도
 SLOW_VELOCITY   = 0.2       
 MAX_ACC_VELOCITY = 2.0      
 
-ZONE_RADIUS     = 0.3      # 구역 반경 (38cm)
-HV_DETECT_RADIUS = 0.12     # HV 감지 반경 (트리거용)
+ZONE_RADIUS     = 0.25      # 구역 반경 (38cm)
+HV_DETECT_RADIUS = 0.25     # HV 감지 반경 (트리거용)
 
 # HV 감지 히스테리시스(깜빡임 방지): True가 한번 뜨면 HOLD_TICKS 동안 True 유지
 HV_HOLD_TICKS = 5   # tick=0.05s 기준 약 0.25초
 
 # 감가속도 제한
 ACCEL_STEP      = 0.3      
-DECEL_STEP      = 0.1       
+DECEL_STEP      = 0.2       
 ACC_DIST_LIMIT  = 0.6      
 ACC_P_GAIN      = 2.5       
 
@@ -47,7 +47,7 @@ LA_GAIN = 0.45
 # HV: 0.5, 1.0, 1.5 의 경우 0.48 이었음
 EXIT_BOOST_DIST = 0.5
 CTRL_PARAMS = {
-    "look_ahead": 1.2, 
+    "look_ahead": 0.65, 
     "kp": 6.0, 
     "ki": 0.05, 
     "kd": 1.0, 
