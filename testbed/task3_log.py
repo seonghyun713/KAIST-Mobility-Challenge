@@ -521,11 +521,11 @@ class Problem3DualZoneGuardianMux(Node):
         ]
 
         # Human Vehicle (HV) Safety Settings
-        self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.25; self.RESET_DISTANCE = 2.2
-        self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
+        # self.TARGET_VELOCITY = 0.5; self.ZONE_RADIUS = 0.15; self.HV_DETECT_RADIUS = 0.25; self.RESET_DISTANCE = 2.2
+        # self.hv19 = None; self.hv20 = None; self.hv19_active = False; self.hv20_active = False
         
-        self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
-        self.create_subscription(PoseStamped, hv_topic("HV2"), self._cb_hv20, qos)
+        # self.create_subscription(PoseStamped, hv_topic("HV1"), self._cb_hv19, qos)
+        # self.create_subscription(PoseStamped, hv_topic("HV2"), self._cb_hv20, qos)
 
         self.safety_cfg = {
             1: {
@@ -586,8 +586,8 @@ class Problem3DualZoneGuardianMux(Node):
 
 
     # --- Callbacks & Helpers ---
-    def _cb_hv19(self, msg): self.hv19 = (float(msg.pose.position.x), float(msg.pose.position.y)); self.hv19_active = True
-    def _cb_hv20(self, msg): self.hv20 = (float(msg.pose.position.x), float(msg.pose.position.y)); self.hv20_active = True
+    # def _cb_hv19(self, msg): self.hv19 = (float(msg.pose.position.x), float(msg.pose.position.y)); self.hv19_active = True
+    # def _cb_hv20(self, msg): self.hv20 = (float(msg.pose.position.x), float(msg.pose.position.y)); self.hv20_active = True
     def _make_zone_state(self, c): return {"CENTER": c, "active": {v:False for v in self.VEH_IDS}, "outside_ticks": {v:0 for v in self.VEH_IDS}, "prev_dist": {v:None for v in self.VEH_IDS}, "approach_cnt": {v:0 for v in self.VEH_IDS}, "approaching": {v:False for v in self.VEH_IDS}}
     
     def _make_pose_cb(self, vid):
@@ -718,14 +718,14 @@ class Problem3DualZoneGuardianMux(Node):
         return limits, in_eff, True
 
     # --- HV Safety Logic ---
-    def _min_dist_to_points(self, vid, pts):
-        p = self.pose.get(vid)
-        if not p or not pts: return 999.0
-        md = 999.0
-        for x,y in pts:
-            d = math.hypot(x-p[0], y-p[1])
-            if d<md: md=d
-        return md
+    # def _min_dist_to_points(self, vid, pts):
+    #     p = self.pose.get(vid)
+    #     if not p or not pts: return 999.0
+    #     md = 999.0
+    #     for x,y in pts:
+    #         d = math.hypot(x-p[0], y-p[1])
+    #         if d<md: md=d
+    #     return md
     
     # def _hv_in_points(self, pts):
     #     if not pts: return False, None
@@ -737,51 +737,51 @@ class Problem3DualZoneGuardianMux(Node):
     #             if math.hypot(x-self.hv20[0], y-self.hv20[1]) < self.HV_DETECT_RADIUS: return True, 20
     #     return False, None
 
-    def _hv_in_points(self, pts):
-        if not pts: return False, None
+    # def _hv_in_points(self, pts):
+    #     if not pts: return False, None
 
-        best = 999.0
-        who = None
+    #     best = 999.0
+    #     who = None
 
-        if self.hv19_active and self.hv19:
-            for x,y in pts:
-                d = math.hypot(x-self.hv19[0], y-self.hv19[1])
-                if d < best:
-                    best = d; who = 19
-                if d < self.HV_DETECT_RADIUS:
-                    print(f"[HV-HIT] HV19 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
-                    return True, 19
+    #     if self.hv19_active and self.hv19:
+    #         for x,y in pts:
+    #             d = math.hypot(x-self.hv19[0], y-self.hv19[1])
+    #             if d < best:
+    #                 best = d; who = 19
+    #             if d < self.HV_DETECT_RADIUS:
+    #                 print(f"[HV-HIT] HV19 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
+    #                 return True, 19
 
-        if self.hv20_active and self.hv20:
-            for x,y in pts:
-                d = math.hypot(x-self.hv20[0], y-self.hv20[1])
-                if d < best:
-                    best = d; who = 20
-                if d < self.HV_DETECT_RADIUS:
-                    print(f"[HV-HIT] HV20 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
-                    return True, 20
+    #     if self.hv20_active and self.hv20:
+    #         for x,y in pts:
+    #             d = math.hypot(x-self.hv20[0], y-self.hv20[1])
+    #             if d < best:
+    #                 best = d; who = 20
+    #             if d < self.HV_DETECT_RADIUS:
+    #                 print(f"[HV-HIT] HV20 best_d={best:.3f} < R={self.HV_DETECT_RADIUS:.3f}")
+    #                 return True, 20
 
-        print(f"[HV-MISS] best_d={best:.3f} (who={who}) >= R={self.HV_DETECT_RADIUS:.3f}")
-        return False, None
+    #     print(f"[HV-MISS] best_d={best:.3f} (who={who}) >= R={self.HV_DETECT_RADIUS:.3f}")
+    #     return False, None
 
-    def _compute_hv_safety_limit(self, vid):
-        cfg = self.safety_cfg.get(vid); 
-        if not cfg: return None, False, None
-        s_zone = cfg.get("start_zone", []); s_trig = cfg.get("start_trigger", [])
-        d_start = self._min_dist_to_points(vid, s_zone)
-        if cfg["stop_logic_disabled"]:
-            if d_start > self.RESET_DISTANCE: cfg["stop_logic_disabled"] = False
-        else:
-            if d_start < self.ZONE_RADIUS:
-                hit, w = self._hv_in_points(s_trig)
-                if hit: cfg["stop_logic_disabled"] = True
-                else: return self.STOP_VELOCITY, True, "START_WAIT"
-        o_zone = cfg.get("out_zone", []); d_zone = cfg.get("danger_zone", [])
-        if o_zone and d_zone:
-            if self._min_dist_to_points(vid, o_zone) < self.ZONE_RADIUS:
-                hit, w = self._hv_in_points(d_zone)
-                if hit: return self.STOP_VELOCITY, True, f"EXIT_YIELD(HV_{w})"
-        return None, False, None
+    # def _compute_hv_safety_limit(self, vid):
+    #     cfg = self.safety_cfg.get(vid); 
+    #     if not cfg: return None, False, None
+    #     s_zone = cfg.get("start_zone", []); s_trig = cfg.get("start_trigger", [])
+    #     d_start = self._min_dist_to_points(vid, s_zone)
+    #     if cfg["stop_logic_disabled"]:
+    #         if d_start > self.RESET_DISTANCE: cfg["stop_logic_disabled"] = False
+    #     else:
+    #         if d_start < self.ZONE_RADIUS:
+    #             hit, w = self._hv_in_points(s_trig)
+    #             if hit: cfg["stop_logic_disabled"] = True
+    #             else: return self.STOP_VELOCITY, True, "START_WAIT"
+    #     o_zone = cfg.get("out_zone", []); d_zone = cfg.get("danger_zone", [])
+    #     if o_zone and d_zone:
+    #         if self._min_dist_to_points(vid, o_zone) < self.ZONE_RADIUS:
+    #             hit, w = self._hv_in_points(d_zone)
+    #             if hit: return self.STOP_VELOCITY, True, f"EXIT_YIELD(HV_{w})"
+    #     return None, False, None
 
     def _update_laps(self):
         now = self.get_clock().now().nanoseconds / 1e9
@@ -972,8 +972,8 @@ class Problem3DualZoneGuardianMux(Node):
 
         # 3. HV Safety & Merge Limits
         hv_lim = {v:None for v in self.VEH_IDS}; hv_force = {v:False for v in self.VEH_IDS}; hv_r = {v:None for v in self.VEH_IDS}
-        for vid in self.VEH_IDS:
-            l, f, r = self._compute_hv_safety_limit(vid); hv_lim[vid]=l; hv_force[vid]=f; hv_r[vid]=r
+        # for vid in self.VEH_IDS:
+        #     l, f, r = self._compute_hv_safety_limit(vid); hv_lim[vid]=l; hv_force[vid]=f; hv_r[vid]=r
         
         for vid in self.VEH_IDS:
             cands = []
