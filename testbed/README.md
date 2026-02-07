@@ -196,3 +196,19 @@ export ROS_DOMAIN_ID=100
 source /opt/ros/foxy/setup.bash 
 python3 task3.py
 ```
+
+
+### 4. cmd_vel -> h6_vel로 변경
+
+```
+# 기존: -r cmd_vel:=/CAV_01/cmd_vel
+# 변경: -r cmd_vel:=/CAV_01/h6_vel
+
+ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
+  --ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_01/h6_vel
+
+# 정지 명령어
+ros2 topic pub --once /CAV_01/h6_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+
+```
+위와 같이 바꾸면 됩니다.
