@@ -94,7 +94,7 @@ HARD_PARAMS = {
     "vel": 1.1, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
 }
 EASY_PARAMS = {
-    "vel": 1.6, "look_ahead": 0.70, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
+    "vel": 1.6, "look_ahead": 0.65, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
 }
 STRAIGHT_PARAMS = {
     "vel": 1.6, "look_ahead": 1.2, "kp": 2.0, "ki": 0.002, "kd": 2.5, "k_cte": 1.0
