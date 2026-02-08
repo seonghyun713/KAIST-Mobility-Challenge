@@ -4,7 +4,6 @@ import math
 import json
 import csv
 import time
-import numpy as np  # 추가됨 (행렬 연산용)
 from datetime import datetime
 
 import rclpy
@@ -17,6 +16,11 @@ from round import VehicleController as RoundController
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PATH_DIR = os.path.join(BASE_DIR, "path")
+
+# ============================================================
+# [DEBUG CONFIG] Toggle logging on/off
+# ============================================================
+ENABLE_MODE_LOGGING = True
 
 # ============================================================
 # [TOPIC CONFIG] Change only here at the venue
@@ -55,7 +59,7 @@ def hv_topic(role: str) -> str:
 # [1] Slow Zones Configuration
 # ============================================================
 RAW_SLOW_ZONES = [
-    (-0.5, -4.6,  2.0, -2.0), # 사지교차로
+    (-0.5, -4.0,  2.0, -2.0), # 사지교차로
     (-0.5,  2.7,  2.0, -1.4), # 회전교차로
 ]
 
@@ -87,13 +91,13 @@ MAX_SPEED = 1.5
 # [2] Speed Profiles
 # ============================================================
 HARD_PARAMS = {
-    "vel": 1.2, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
+    "vel": 1.1, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
 }
 EASY_PARAMS = {
-    "vel": 1.3, "look_ahead": 0.65, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
+    "vel": 1.6, "look_ahead": 0.65, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
 }
 STRAIGHT_PARAMS = {
-    "vel": 1.8, "look_ahead": 1.2, "kp": 2.0, "ki": 0.002, "kd": 2.5, "k_cte": 1.0
+    "vel": 1.6, "look_ahead": 1.2, "kp": 2.0, "ki": 0.002, "kd": 2.5, "k_cte": 1.0
 }
 
 WHEELBASE = 0.211
@@ -284,7 +288,8 @@ class MapPredictionDriver(Node):
             self._skip_dterm = 1
             min_d = best_d
 
-        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.45)
+        active_look_ahead = min(params["look_ahead"], self.current_vel_cmd * 0.50)
+        # active_look_ahead = params["look_ahead"]
         
         target_idx = curr_idx
         for i in range(path_len):
@@ -306,6 +311,9 @@ class MapPredictionDriver(Node):
 
         path_dx = tx - self.path_x[curr_idx]
         path_dy = ty - self.path_y[curr_idx]
+        # next_idx = (curr_idx + 10) % path_len
+        # path_dx = self.path_x[next_idx] - self.path_x[curr_idx]
+        # path_dy = self.path_y[next_idx] - self.path_y[curr_idx] 
         
         if math.hypot(path_dx, path_dy) < 0.02:
             cte = 0.0
@@ -355,6 +363,11 @@ class MapPredictionDriver(Node):
             if (self.mode == "HARD" and next_mode == "EASY") or \
                (self.mode == "EASY" and next_mode == "STRAIGHT"):
                 self.int_err = 0.0
+
+                # 모드 변경 로깅 (플래그로 제어)
+                if ENABLE_MODE_LOGGING:
+                    self.get_logger().info(f"[CAV{self.vid}] Mode: {self.mode} → {next_mode}")
+
             self.mode = next_mode
             
             if self.mode == "HARD": target_v = HARD_PARAMS["vel"]
