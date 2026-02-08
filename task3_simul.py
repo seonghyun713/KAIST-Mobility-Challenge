@@ -32,10 +32,10 @@ SLOW_ZONES = [
 ]
 
 SLOW2_CUTOUT = {
-    "x_min": -0.50,
+    "x_min": -1.0,
     "x_max": 0.37,
     "y_min":  0.00,
-    "y_max":  1.80,
+    "y_max":  2.20,
 }
 
 SLOW_PARAMS = {
@@ -43,32 +43,50 @@ SLOW_PARAMS = {
     "look_ahead": 0.50, 
     "kp": 6.0,          
     "ki": 0.045,
-    "kd": 1.0,          
+    "kd": 0.5,          
     "k_cte": 4.0
 }
-MAX_SPEED = 1.5
-
 
 # ============================================================
 # [2] Speed Profiles (3-Stage Transmission)
 # ============================================================
 
+# 1. Hard Curve (Low Speed, High Gain)
 HARD_PARAMS = {
-    "vel": 1.1, "look_ahead": 0.65, "kp": 6.0, "ki": 0.045, "kd": 1.0, "k_cte": 3.0
-}
-EASY_PARAMS = {
-    "vel": 1.6, "look_ahead": 0.65, "kp": 6.0, "ki": 0.05, "kd": 1.0, "k_cte": 3.0
-}
-STRAIGHT_PARAMS = {
-    "vel": 1.6, "look_ahead": 1.2, "kp": 2.0, "ki": 0.002, "kd": 2.5, "k_cte": 1.0
+    "vel": 1.1,
+    "look_ahead": 0.56,
+    "kp": 6.0,
+    "ki": 0.045,
+    "kd": 1.0,
+    "k_cte": 6.0
 }
 
+# 2. Easy Curve (Medium Speed)
+EASY_PARAMS = {
+    "vel": 1.5,
+    "look_ahead": 0.60, 
+    "kp": 6.0,
+    "ki": 0.05,
+    "kd": 1.0,
+    "k_cte": 4.0
+}
+
+# 3. Straight (High Speed, Stability Focused)
+STRAIGHT_PARAMS = {
+    "vel": 1.6,
+    "look_ahead": 1.2,  # Increased for high speed
+    "kp": 2.0,          # Reduced to prevent oscillation
+    "ki": 0.002,        # Minimize integral windup
+    "kd": 0.5,          # Increased damping
+    "k_cte": 1.0
+}
+
+# Vehicle Specs
 WHEELBASE = 0.211
 DIST_CENTER_TO_REAR = WHEELBASE / 2.0
-TICK_RATE = 0.05      # 50 Hz
-ACCEL_LIMIT = 1.5
-DECEL_LIMIT = 2.0
-
+TICK_RATE = 0.05
+ACCEL_LIMIT = 3.0
+DECEL_LIMIT = 2.5
 
 
 # ============================================================
@@ -138,10 +156,13 @@ class MapPredictionDriver(Node):
         self.last_time = self.get_clock().now()
         self._skip_dterm = 0
         
-        self.current_vel_cmd = 0.5
+        self.current_vel_cmd = 1.5
         self.mode = "HARD"
         self.avg_steer_signed = 0.0 
         self.log_counter = 0
+        self.prev_in_zone = False   #####################################
+        self._zone_exit_steer_snap = False ###########################
+
 
         self.old_nearest_idx = 0
 
@@ -190,19 +211,18 @@ class MapPredictionDriver(Node):
         now = self.get_clock().now()
         dt = (now - self.last_time).nanoseconds / 1e9
         self.last_time = now
-        if dt <= 0.001 or dt > 0.05: return
+        if dt <= 0.001 or dt > 0.1: return
 
         # --------------------------------------------------------
-        # [Step 1] Zone & Parameter Selection
+        ##################################################################33
         # --------------------------------------------------------
         in_zone = self.is_in_slow_zone(self.curr_x, self.curr_y)
-        
+
         if in_zone:
             params = SLOW_PARAMS
             current_mode_str = "ZONE"
-            self.mode = "HARD" 
-            self.avg_steer_signed = 0.0
-            self.int_err = 0.0
+            self.mode = "HARD"
+            self.int_err = 0.0              # ✅ I항은 ZONE에서 0 유지
         else:
             if self.mode == "HARD": params = HARD_PARAMS
             elif self.mode == "EASY": params = EASY_PARAMS
@@ -276,6 +296,25 @@ class MapPredictionDriver(Node):
         desired_yaw = math.atan2(ty - self.curr_y, tx - self.curr_x)
         yaw_err = self.normalize_angle(desired_yaw - self.curr_yaw)
 
+        # --------------------------------------------------------
+        ##########################################################################
+        # --------------------------------------------------------
+        if self.prev_in_zone and (not in_zone):
+            # ZONE -> OUT (exit)
+            self.prev_err = float(yaw_err)   # ✅ D-term 스파이크 제거 (동기화)
+            self._skip_dterm = 2             # ✅ 1~2 tick D-term OFF
+            self.int_err = 0.0               # ✅ (이미 0이지만 확실히)
+            # 선택지 1) exit 순간에 필터를 현재 steer로 붙이기 (추천)
+            # (final_steer 아직 계산 전이라 여기서는 못함)
+            # -> 아래 final_steer 계산 후에 붙일거면 flag를 써야함
+            self._zone_exit_steer_snap = True
+        else:
+            self._zone_exit_steer_snap = False
+
+        self.prev_in_zone = in_zone
+
+
+
         # Calculate Cross Track Error (CTE)
         path_dx = tx - self.path_x[curr_idx]
         path_dy = ty - self.path_y[curr_idx]
@@ -305,14 +344,19 @@ class MapPredictionDriver(Node):
         final_steer = max(-2.0, min(2.0, float(p + i_term + d_term + cte)))
         self.prev_err = yaw_err
 
+        ###############################################################
+        if getattr(self, "_zone_exit_steer_snap", False):
+            self.avg_steer_signed = float(final_steer)
+
+
         # --------------------------------------------------------
-        # [Step 4] Mode Switching & Speed Control
+        #################################################
         # --------------------------------------------------------
+        self.avg_steer_signed = 0.85 * self.avg_steer_signed + 0.15 * float(final_steer)
+
         if in_zone:
             target_v = SLOW_PARAMS["vel"]
         else:
-            # Low-pass filter on steering
-            self.avg_steer_signed = 0.85 * self.avg_steer_signed + 0.15 * final_steer
             filter_val = abs(self.avg_steer_signed)
 
             next_mode = self.mode 
@@ -323,7 +367,7 @@ class MapPredictionDriver(Node):
                 if self.mode == "STRGT":
                     if filter_val > 0.30: next_mode = "EASY"
                 elif self.mode == "EASY":
-                    if filter_val < 0.15: next_mode = "STRGT"
+                    if filter_val < 0.22: next_mode = "STRGT"
                     elif filter_val > 0.80: next_mode = "HARD"
                 elif self.mode == "HARD":
                     if filter_val < 0.70: next_mode = "EASY"
@@ -367,28 +411,28 @@ class Problem3DualZoneGuardianMux(Node):
 
 
         # Parameters
-        self.V_NOM = MAX_SPEED
-        self.RANK_SPEEDS_3P = [MAX_SPEED, 0.9, 0.3, 0.3]
-        self.RANK_SPEEDS_2P = [MAX_SPEED, 0.3]
+        self.V_NOM = 1.5
+        self.RANK_SPEEDS_3P = [1.5, 0.8, 0.1, 0.4]
+        self.RANK_SPEEDS_2P = [1.5, 0.1]
 
         self.TOP_CENTER = (-2.3342, 2.3073)
         self.BOT_CENTER = (-2.3342, -2.3073)
         self.RADIUS = 1.5
         self.EXIT_RADIUS = 0.4
-        self.APPROACH_N = 3
-        self.EPS = 0.001
+        self.APPROACH_N = 2
+        self.EPS = 0.0005
         self.HYSTERESIS_N = 5
 
         self.TICK = 0.05
-        self.RAMP_DOWN_PER_SEC = 1.5
-        self.RAMP_UP_PER_SEC = 0.30
+        self.RAMP_DOWN_PER_SEC = 6.0
+        self.RAMP_UP_PER_SEC = 2.1
         self.STOP_VELOCITY = 0.0
         self.MIN_SPEED = self.STOP_VELOCITY
         
         # =========================
         # HOLD (감속 유지) 설정
         # =========================
-        self.HOLD_TICKS = 30  # 12 * 0.05s = 0.6초 정도 유지 (원하는대로)
+        self.HOLD_TICKS = 3  # 12 * 0.05s = 0.6초 정도 유지 (원하는대로)
         self.hold_cnt = {vid: 0 for vid in self.VEH_IDS}
         self.hold_limit = {vid: None for vid in self.VEH_IDS}  # 마지막으로 걸린 제한값 저장
 
@@ -422,11 +466,11 @@ class Problem3DualZoneGuardianMux(Node):
         self.FW_RADIUS = 2.2
         self.FW_EXIT_RADIUS = 0.4
         self.FW_HYSTERESIS_N = 10
-        self.FW_APPROACH_N = 3
-        self.FW_EPS = 0.001
-        self.FW_V_NOM = MAX_SPEED
-        self.FW_RANK_SPEEDS_2P = [MAX_SPEED, 0.3]
-        self.FW_RANK_SPEEDS_3P = [MAX_SPEED, 0.9, 0.3, 0.3]
+        self.FW_APPROACH_N = 2
+        self.FW_EPS = 0.0005
+        self.FW_V_NOM = 1.5
+        self.FW_RANK_SPEEDS_2P = [1.5, 0.1]
+        self.FW_RANK_SPEEDS_3P = [1.5, 0.8, 0.1, 0.1]
         self.fw = {
             "active": {vid: False for vid in self.VEH_IDS},
             "outside_ticks": {vid: 0 for vid in self.VEH_IDS},
@@ -442,8 +486,6 @@ class Problem3DualZoneGuardianMux(Node):
             frozenset([(1, "S"), (2, "W")]), frozenset([(1, "S"), (2, "E")]),
             frozenset([(1, "S"), (4, "W")]), frozenset([(2, "E"), (4, "W")])
         ]
-
-        
 
         self.create_timer(self.TICK, self.tick)
 
@@ -473,7 +515,7 @@ class Problem3DualZoneGuardianMux(Node):
 
 
     # --- Callbacks & Helpers ---
-    
+   
     def _make_zone_state(self, c): return {"CENTER": c, "active": {v:False for v in self.VEH_IDS}, "outside_ticks": {v:0 for v in self.VEH_IDS}, "prev_dist": {v:None for v in self.VEH_IDS}, "approach_cnt": {v:0 for v in self.VEH_IDS}, "approaching": {v:False for v in self.VEH_IDS}}
     
     def _make_pose_cb(self, vid):
@@ -601,8 +643,7 @@ class Problem3DualZoneGuardianMux(Node):
             des = speeds[min(i, len(speeds)-1)]; limits[vid] = des if des < self.V_NOM else None
         return limits, in_eff, True
 
-   
-
+    
     def _update_laps(self):
         now = self.get_clock().now().nanoseconds / 1e9
 
@@ -760,6 +801,7 @@ class Problem3DualZoneGuardianMux(Node):
 
         # 3. HV Safety & Merge Limits
         hv_lim = {v:None for v in self.VEH_IDS}; hv_force = {v:False for v in self.VEH_IDS}; hv_r = {v:None for v in self.VEH_IDS}
+       
         
         for vid in self.VEH_IDS:
             cands = []
@@ -865,10 +907,10 @@ def main(args=None):
     # start_zone/start_trigger/out_zone/danger_zone 경로는 round_main.py가 기대하는 인자 그대로 넣어야 함
     p = lambda name: os.path.join(PATH_DIR, name)
     round_nodes = [
-        RoundController(1, p("path3_1.json"), None, p("path_hv_3_1.csv"), p("path3_1_out_zone.csv"), p("path_hv_3_2.csv")),
-        RoundController(2, p("path3_2.json"), None, p("path_hv_2_1.csv"), p("path3_2_out_zone.csv"), p("path_hv_2_2.csv")),
-        RoundController(3, p("path3_3.json"), None, p("path_hv_2_1.csv"), None,                     p("path_hv_2_1.csv")),
-        RoundController(4, p("path3_4.json"), None, p("path_hv_3_1.csv"), None,                     p("path_hv_3_1.csv")),
+        RoundController(1, p("path3_1.json"), [], p("path_hv_3_1.csv"), p("path3_1_out_zone.csv"), p("path_hv_3_2.csv")),
+        RoundController(2, p("path3_2.json"), [], p("path_hv_2_1.csv"), p("path3_2_out_zone.csv"), p("path_hv_2_2.csv")),
+        RoundController(3, p("path3_3.json"), [], p("path_hv_2_1.csv"), None,                     p("path_hv_2_1.csv")),
+        RoundController(4, p("path3_4.json"), [], p("path_hv_3_1.csv"), None,                     p("path_hv_3_1.csv")),
     ]
 
     guardian = Problem3DualZoneGuardianMux()
