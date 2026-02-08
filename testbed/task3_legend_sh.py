@@ -8,8 +8,6 @@ import os
 import math
 import json
 import csv
-import time
-from datetime import datetime
 
 import rclpy
 from rclpy.node import Node
@@ -20,6 +18,11 @@ from geometry_msgs.msg import Accel, PoseStamped, Twist
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PATH_DIR = os.path.join(BASE_DIR, "path")
+
+# ============================================================
+# [DEBUG CONFIG] Toggle logging on/off
+# ============================================================
+ENABLE_MODE_LOGGING = False
 
 # ============================================================
 # [TOPIC CONFIG] Change only here at the venue
@@ -93,8 +96,8 @@ SLOW_PARAMS = {
 }
 
 HARD_PARAMS = {
-    "vel": 1.2, 
-    "look_ahead": 0.65, 
+    "vel": 1.1, 
+    "look_ahead": 0.58, 
     "kp": 6.0, 
     "ki": 0.045, 
     "kd": 1.0, 
@@ -128,7 +131,7 @@ DECEL_LIMIT = 2.0     # m/s²
 # [ROUNDABOUT PARAMS] Gate & HV Safety
 # ============================================================
 GATE_X, GATE_Y = 1.7, 0.0
-GATE_SLOW_DIST = 2.1      # 게이트 눈치보기 시작 거리
+GATE_SLOW_DIST = 2.0      # 게이트 눈치보기 시작 거리
 GATE_RESET_DIST = 2.5     # 리셋 거리 (다음 바퀴 준비)
 GATE_SLOW_VEL = 0.05      # 게이트 대기 속도
 
@@ -138,7 +141,7 @@ HV_HOLD_TICKS = 5         # HV 감지 유지 시간 (깜빡임 방지)
 
 # Smart ACC (CAV 3, 4)
 ACC_DIST_LIMIT = 0.6      # 추종 거리
-ACC_P_GAIN = 2.5          # 거리 오차 게인
+ACC_P_GAIN = 2.0          # 거리 오차 게인
 SLOW_VELOCITY = 0.2       # ACC 감속 시
 MAX_ACC_VELOCITY = 2.0    # ACC 가속 시
 
@@ -189,31 +192,6 @@ class UnifiedVehicleDriver(Node):
         self.logical_id = int(vehicle_id)
         self.TOPIC = cav_topic(self.logical_id)
         self.PATH_FILENAME = path_filename
-        
-        # ====================================================
-        # [DATA LOGGING SETUP] Optional - for debugging
-        # ====================================================
-        ENABLE_CSV_LOG = False  # Set True for debugging
-        
-        if ENABLE_CSV_LOG:
-            self.log_dir = os.path.join(BASE_DIR, "csv_data")
-            os.makedirs(self.log_dir, exist_ok=True)
-            timestamp_str = datetime.now().strftime("%m%d_%H%M%S")
-            self.csv_path = os.path.join(self.log_dir, f"veh_{self.vid}_{timestamp_str}.csv")
-            self.csv_file = open(self.csv_path, 'w', newline='')
-            self.writer = csv.writer(self.csv_file)
-            self.writer.writerow([
-                "timestamp", "x", "y", "yaw", "v_current",
-                "cte", "yaw_err", "look_ahead_dist",
-                "target_x", "target_y", "target_local_x", "target_local_y",
-                "kp", "ki", "kd", "k_cte", "mode_idx", "in_slow_zone",
-                "steer_cmd", "accel_cmd"
-            ])
-            self.csv_flush_counter = 0
-            self.get_logger().info(f"💾 Logging enabled: {self.csv_path}")
-        else:
-            self.csv_file = None
-            self.writer = None
         
         # ====================================================
         # [QoS & Subscriptions]
@@ -564,9 +542,12 @@ class UnifiedVehicleDriver(Node):
         self.yaw_err_f = self.normalize_angle(self.yaw_err_f + alpha * err_delta)
         
         # CTE calculation
-        path_dx = tx - self.path_x[curr_idx]
-        path_dy = ty - self.path_y[curr_idx]
-        
+        # path_dx = tx - self.path_x[curr_idx]
+        # path_dy = ty - self.path_y[curr_idx]
+        next_idx = (curr_idx + 10) % path_len
+        path_dx = self.path_x[next_idx] - self.path_x[curr_idx]
+        path_dy = self.path_y[next_idx] - self.path_y[curr_idx]
+
         if math.hypot(path_dx, path_dy) < 0.02:
             cte = 0.0
         else:
@@ -632,6 +613,10 @@ class UnifiedVehicleDriver(Node):
             if self.mode != next_mode:
                 self.int_err = 0.0
                 self._skip_dterm = 1  # D-term도 한번 스킵
+                
+                # 모드 변경 로깅 (플래그로 제어)
+                if ENABLE_MODE_LOGGING:
+                    self.get_logger().info(f"[CAV{self.vid}] Mode: {self.mode} → {next_mode}")
             
             self.mode = next_mode
             
@@ -661,35 +646,11 @@ class UnifiedVehicleDriver(Node):
         # ================================================
         cmd = Accel()
         cmd.linear.x = float(self.current_vel_cmd)
-        cmd.angular.z = float(final_steer)  # ✅ 수정: steer → final_steer
+        cmd.angular.z = float(final_steer)
         self.accel_raw_pub.publish(cmd)
-        
-        # ================================================
-        # [9] DATA LOGGING (Optional)
-        # ================================================
-        if self.writer:
-            lx, ly = self.global_to_local(tx, ty, self.curr_x, self.curr_y, self.curr_yaw)
-            row_data = [
-                time.time(), 
-                round(self.curr_x, 4), round(self.curr_y, 4), round(self.curr_yaw, 4),
-                round(self.current_vel_cmd, 3),
-                round(cte, 4), round(yaw_err, 4), round(active_look_ahead, 3),
-                round(tx, 4), round(ty, 4), round(lx, 4), round(ly, 4),
-                params["kp"], params["ki"], params["kd"], params["k_cte"],
-                mode_idx, 1 if in_zone else 0,
-                round(final_steer, 4), round(self.current_vel_cmd, 3)
-            ]
-            self.writer.writerow(row_data)
-            
-            # Periodic flush (every 2 seconds)
-            self.csv_flush_counter += 1
-            if self.csv_flush_counter % 100 == 0:
-                self.csv_file.flush()
     
     def destroy_node(self):
         """Cleanup on shutdown"""
-        if self.csv_file:
-            self.csv_file.close()
         super().destroy_node()
 
 # ============================================================
