@@ -113,7 +113,7 @@ TICK_RATE = 0.02
 ACCEL_LIMIT = 3.0
 DECEL_LIMIT = 2.5
 
-MAX_SPEED = 1.6  # Maximum allowed speed for CAVs
+MAX_SPEED = 1.5  # Maximum allowed speed for CAVs
 
 # ============================================================
 # [COMMON: File Loaders]
