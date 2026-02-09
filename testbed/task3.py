@@ -93,7 +93,7 @@ MAX_SPEED = 1.5
 # 1. Hard Curve (Low Speed, High Gain)
 HARD_PARAMS = {
     "vel": 1.0,
-    "look_ahead": 0.56,
+    "look_ahead": 0.58,
     "kp": 6.0,
     "ki": 0.045,
     "kd": 1.0,
