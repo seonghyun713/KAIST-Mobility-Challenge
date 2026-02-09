@@ -39,7 +39,7 @@ ACC_P_GAIN      = 2.5
 RESET_DISTANCE  = 2.2       
 
 MIN_LA = 0.5
-LA_GAIN = 0.45
+LA_GAIN = 0.43
      # 속도 스케일 (v * 0.45)
 
 
@@ -216,7 +216,7 @@ class VehicleController(Node):
         # [Logic 1] 서행 zone
         # ---------------------------------------------------------
         GATE_X, GATE_Y = 1.7, 0.0
-        GATE_SLOW_DIST = 2.1
+        GATE_SLOW_DIST = 2.0
         GATE_RESET_DIST = 2.5
         GATE_SLOW_VEL = 0.05
 
