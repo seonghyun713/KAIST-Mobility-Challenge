@@ -102,7 +102,7 @@ HARD_PARAMS = {
 
 # 2. Easy Curve (Medium Speed)
 EASY_PARAMS = {
-    "vel": 1.3,
+    "vel": 1.5,
     "look_ahead": 0.55, 
     "kp": 6.0,
     "ki": 0.05,
@@ -112,7 +112,7 @@ EASY_PARAMS = {
 
 # 3. Straight (High Speed, Stability Focued)
 STRAIGHT_PARAMS = {
-    "vel": 1.5,
+    "vel": 1.6,
     "look_ahead": 1.2,  # Increased for high speed
     "kp": 2.0,          # Reduced to prevent oscillation
     "ki": 0.002,        # Minimize integral windup
