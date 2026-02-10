@@ -1,24 +1,54 @@
 # KAIST Mobility Challenge — CAV Control
 
-This repository contains our team’s solution for the **KAIST Mobility Challenge**,
+This repository contains **Team H6’s implementation** for the **KAIST Mobility Challenge**,
 focusing on **connected and autonomous vehicle (CAV) control** in a multi-agent
-ROS 2 simulation environment.
+ROS 2 environment.
+
+<p align="center">
+  <img src="assets/kmc2025.png" width="85%">
+</p>
+
+<p align="center">
+  <em>
+    Overview of competition tasks and system deployment across simulation
+    and embedded environments
+  </em>
+</p>
 
 ---
 
 ## Overview
 - **Event**: KAIST Mobility Challenge  
 - **Platform**: ROS 2–based multi-vehicle simulator  
-- **Focus**: Trajectory tracking and motion control for CAVs  
+- **Focus**: Multi-CAV non-collision control algorithms for unsignalized intersections and roundabouts  
+- **Deployment**: Shared decision and control logic across simulation and embedded systems
 
 ---
 
 ## Simulator
-This project is built on the official KAIST Mobility Challenge Simulator.
 
-[![Simulator Repository](https://img.shields.io/badge/GitHub-Mobility_Challenge_Simulator-black?logo=github)](https://github.com/cislab-kaist/Mobility_Challenge_Simulator)
+All competition tasks are implemented and validated using the
+**official KAIST Mobility Challenge Simulator**, which is included in this repository
+as a pinned submodule.
+
+<p align="center">
+  <a href="https://github.com/cislab-kaist/Mobility_Challenge_Simulator">
+    <img src="https://img.shields.io/badge/KAIST%20Mobility%20Challenge%20Simulator-Official-blue?style=for-the-badge">
+    <img src="https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github">
+  </a>
+</p>
+
+### Implemented Tasks (Simulation)
+- **Task 1-1**: Single-vehicle control  
+- **Task 1-2**: Two-CAV collision avoidance  
+- **Task 2**: Overtaking and merging with human-driven vehicles (HVs)  
+- **Task 3**: Multi-CAV coordination at unsignalized intersections  
+
+Each task is implemented in a dedicated ROS 2 package:
+`pkg_task_1_1/`, `pkg_task_1_2/`, `pkg_task_2/`, and `pkg_task_3/`.
 
 ---
+
 
 ## How to Run
 ### 0. Prerequisites
@@ -127,16 +157,9 @@ rm -rf ~/.ros/ros2cli ~/.ros/log
 ros2 daemon start
 ros2 topic list | grep CAV
 ```
-
----
-
-## Architecture
-- **ROS 2 Nodes**: state → control → command
-- **Control**: reference trajectory tracking
-- **Interface**: direct simulator integration
-
 ---
 
 ## Notes
 - Structured Git workflow (feature → dev → main)
 - Build artifacts and logs excluded via `.gitignore`
+- Designed and finalized for official KAIST Mobility Challenge submission
