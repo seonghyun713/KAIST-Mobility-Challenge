@@ -149,6 +149,7 @@ ros2 topic pub --once /CAV_28/cmd_vel geometry_msgs/msg/Twist \
 ### 2-2. 고속 제어: 단일 실행 (ssh)
 - 각 CAV별 번호 입력
 - CAV_28 예시
+- 포트확인 결과를 바탕으로 ttyUSB0 또는 ttyUSB1 설정
 ```bash
 ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
   --ros-args \
