@@ -13,6 +13,29 @@ ROS 2 simulation environment.
 
 ---
 
+## 🏆 Real-World Demonstration
+We successfully deployed our control algorithm to a physical scale car, verifying the **Sim-to-Real** performance.
+
+<img src="./assets/real_car_demo.gif" width="100%">
+> **Figure 1.** Autonomous driving demonstration in a real-world environment.
+
+<br>
+
+<details>
+<summary><strong>🔻 Click to view Simulation Verification (Task 1~3)</strong></summary>
+
+Before the real-world test, we verified the logic in the simulator.
+
+| **Problem 1-1 (Lane Keeping)** | **Problem 1-2 (Obstacle Avoidance)** |
+| :---: | :---: |
+| <img src="./assets/task1_1.gif" width="100%"> | <img src="./assets/task1_2.gif" width="100%"> |
+| **Problem 2 (Intersection)** | **Problem 3 (Multi-Agent)** |
+| <img src="./assets/task2.gif" width="100%"> | <img src="./assets/task3.gif" width="100%"> |
+
+</details>
+
+---
+
 ## Simulator
 This project is built on the official KAIST Mobility Challenge Simulator.
 
