@@ -140,6 +140,7 @@ source ~/KAIST_Mobility_Challenge_SDK/install/setup.bash
 ```bash
 ls -l /dev/ttyKMC /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
+- ttySUB0 또는 ttyUSB1
 
 **Driver 노드 실행**
 
@@ -159,8 +160,9 @@ ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
 
 ## 3. 차량 제어
 
-### 3-1. 정지
-
+### 3-1. 정지 (ssh)
+- 각 CAV별 번호 입력
+- CAV_28 예시
 ```bash
 export ROS_DOMAIN_ID=100
 source /opt/ros/foxy/setup.bash
@@ -168,16 +170,10 @@ ros2 topic pub --once /CAV_28/cmd_vel geometry_msgs/msg/Twist \
 "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-### 3-2. Fake Pose
 
-```bash
-export ROS_DOMAIN_ID=100 
-source /opt/ros/foxy/setup.bash 
-python3 fakepose.py --cav 28 --path ./path/path3_2.json --rate 50 --loop --use_cmd_vel --speed 0.7
-```
-
-### 3-3. 고속 제어: 단일 실행
-
+### 3-2. 고속 제어: 단일 실행 (ssh)
+- 각 CAV별 번호 입력
+- CAV_28 예시
 ```bash
 ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
   --ros-args \
@@ -189,7 +185,7 @@ ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
   -r cmd_vel:=/CAV_28/cmd_vel
 ```
 
-### 3-4. [task3.py](http://task3.py) 실행
+### 3-4. [task3.py](http://task3.py) 실행 (local)
 
 ```bash
 export ROS_DOMAIN_ID=100 
@@ -197,18 +193,3 @@ source /opt/ros/foxy/setup.bash
 python3 task3.py
 ```
 
-
-### 4. cmd_vel -> h6_vel로 변경
-
-```
-# 기존: -r cmd_vel:=/CAV_01/cmd_vel
-# 변경: -r cmd_vel:=/CAV_01/h6_vel
-
-ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
-  --ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_01/h6_vel
-
-# 정지 명령어
-ros2 topic pub --once /CAV_01/h6_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
-
-```
-위와 같이 바꾸면 됩니다.
