@@ -1,16 +1,26 @@
+## Embedded Demonstration
+
+<p align="center">
+  <img src="embedded.jpg" width="85%">
+</p>
+
+<p align="center">
+  <em>Embedded testbed run (Task 3)</em>
+</p>
+
 ## 0. Architecture
 
 ```
-[노트북]
-  (Task3 python)  →  publish /cmd_vel  (Wi-Fi, ROS2 DDS)
-                         ↓
-[Jetson Orin (차량 위)]
-  subscribe /cmd_vel
-  SDK/ROS2 C++ node: drv.setCommand(linear, omega)
-  → UART (0xA5) 송신 (/dev/ttyKMC)
-                         ↓
-[Raspberry Pi (차량 내부)]
-  UART 수신 → 모터/조향 구동
+[Control Laptop]
+(Task 3 Python Node) → publishes /cmd_vel (Wi-Fi, ROS 2 DDS)
+↓
+[Jetson Orin (On Vehicle)]
+subscribes to /cmd_vel
+SDK / ROS 2 C++ node: drv.setCommand(linear, omega)
+→ UART transmission (0xA5) via /dev/ttyKMC
+↓
+[Raspberry Pi (Inside Vehicle)]
+UART reception → motor and steering actuation
 ```
 
  `/cmd_vel`
@@ -20,20 +30,19 @@
 - CAV03 Jetson: `ROS_DOMAIN_ID=100`
 - CAV04 Jetson: `ROS_DOMAIN_ID=100`
 
-
 ---
 
-## 1. 차량 초기 세팅
+## 1. Initial Vehicle Setup
 
 - password: 1234
 
 Domain ID
 
 ```
-# Domain_ID 확인
+# Check Domain_ID
 env | grep ROS_DOMAIN_ID
 
-# Domain_ID 변경
+# Set Domain_ID
 export ROS_DOMAIN_ID=100
 ```
 
@@ -43,7 +52,7 @@ Git clone
 git clone https://github.com/Seo12044/KAIST_Mobility_Challenge_SDK.git
 ```
 
-ROS2 Foxy:
+Install ROS2 Foxy:
 
 ```bash
 sudo apt update
@@ -74,21 +83,21 @@ sudo apt install -y ros-foxy-ros-base
 
 ```
 
-SDK 연결:
+SDK Setup:
 
 ```bash
 cd ~/KAIST_Mobility_Challenge_SDK
 mkdir -p src
 ```
 
-Driver 패키지 링크: 
+Link Driver Package: 
 
 ```bash
 rm -rf src/kmc_hardware_driver_node
 ln -s ../examples/Driver_ROS2 src/kmc_hardware_driver_node
 ```
 
-Build 및 확인
+Build and Verify
 
 ```bash
 source /opt/ros/foxy/setup.bash
@@ -102,7 +111,7 @@ source install/setup.bash
 ros2 pkg executables kmc_hardware_driver_node
 ```
 
-도메인 고정
+Fix ROS Domain
 
 ```bash
 export ROS_DOMAIN_ID=100
@@ -110,21 +119,21 @@ source /opt/ros/foxy/setup.bash
 source ~/KAIST_Mobility_Challenge_SDK/install/setup.bash
 ```
 
-포트 확인
+Serial Port Check
 
 ```bash
 ls -l /dev/ttyKMC /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
 - ttySUB0 또는 ttyUSB1
 
-**Driver 노드 실행**
+**RUn Driver Node**
 
 ```bash
 ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
   --ros-args -p port:=/dev/ttyKMC -r cmd_vel:=/CAV_09/cmd_vel
 ```
 
-- `/dev/ttyKMC` 없을경우:
+- if `/dev/ttyKMC` is not available:
 
 ```bash
 ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
@@ -133,11 +142,11 @@ ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
 
 ---
 
-## 2. 차량 제어
+## 2. Vehicle Control
 
-### 2-1. 정지 (ssh)
-- 각 CAV별 번호 입력
-- CAV_28 예시
+### 2-1. Emergency Stop (via SSH)
+- Specify CAV ID
+- Example: CAV_28
 ```bash
 export ROS_DOMAIN_ID=100
 source /opt/ros/foxy/setup.bash
@@ -146,10 +155,9 @@ ros2 topic pub --once /CAV_28/cmd_vel geometry_msgs/msg/Twist \
 ```
 
 
-### 2-2. 고속 제어: 단일 실행 (ssh)
-- 각 CAV별 번호 입력
-- CAV_28 예시
-- 포트확인 결과를 바탕으로 ttyUSB0 또는 ttyUSB1 설정
+### 2-2. High-Rate Control (Single Execution)
+- Specify CAV ID
+- Set port based on detected device
 ```bash
 ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
   --ros-args \
@@ -161,7 +169,7 @@ ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
   -r cmd_vel:=/CAV_28/cmd_vel
 ```
 
-### 2-4. [task3.py](http://task3.py) 실행 (local)
+### 2-4. Run [task3.py](http://task3.py) (Local)
 
 ```bash
 export ROS_DOMAIN_ID=100 
@@ -169,9 +177,9 @@ source /opt/ros/foxy/setup.bash
 python3 task3.py
 ```
 ---
-## 3. 시뮬레이터 실행
+## 3. Simulator Execution
 
-### 3-1 시뮬레이터 실행
+### 3-1 Launch Simulator
 
 ```bash
 cd ~/Desktop/Mobility_Challenge_Simulator
@@ -181,8 +189,8 @@ export ROS_DOMAIN_ID=100
 ros2 launch simulator_launch simulator_launch.py
 ```
 
-### 3-2 제어코드 적용
-- 시뮬레이터용 제어코드: `simul.py`
+### 3-2 Apply Control Code (Simulation)
+- Simulator control script: simul.py
   
 ```bash
 source /opt/ros/foxy/setup.bash
