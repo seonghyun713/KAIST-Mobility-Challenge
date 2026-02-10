@@ -5,7 +5,7 @@ focusing on **connected and autonomous vehicle (CAV) control** in a multi-agent
 ROS 2 environment.
 
 <p align="center">
-  <img src="assets/kmc2025.png" width="85%">
+  <img src="assets/system_architecture.png" width="85%">
 </p>
 
 <p align="center">
@@ -22,6 +22,30 @@ ROS 2 environment.
 - **Platform**: ROS 2–based multi-vehicle simulator  
 - **Focus**: Multi-CAV non-collision control algorithms for unsignalized intersections and roundabouts  
 - **Deployment**: Shared decision and control logic across simulation and embedded systems
+
+---
+
+## 🏆 Real-World Demonstration
+We successfully deployed our control algorithm to a physical scale car, verifying the **Sim-to-Real** performance.
+
+<img src="./assets/real_car_demo.gif" width="100%">
+> **Figure 1.** Autonomous driving demonstration in a real-world environment.
+
+<br>
+
+<details>
+<summary><strong>🔻 Click to view Simulation Verification (Task 1~3)</strong></summary>
+
+Before the real-world test, we verified the logic in the simulator.
+> **Click on the images below to watch the full video clips.**
+
+| **Problem 1-1 (Lane Keeping)** | **Problem 1-2 (Obstacle Avoidance)** |
+| :---: | :---: |
+| [![Problem 1-1](./assets/task1_1_thumb.png)](./assets/task1_1.mp4) | [![Problem 1-2](./assets/task1_2_thumb.png)](./assets/task1_2.mp4) |
+| **Problem 2 (Intersection)** | **Problem 3 (Multi-Agent)** |
+| [![Problem 2](./assets/task2_thumb.png)](./assets/task2.mp4) | [![Problem 3](./assets/task3_thumb.png)](./assets/task3.mp4) |
+
+</details>
 
 ---
 
