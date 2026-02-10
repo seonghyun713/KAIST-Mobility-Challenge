@@ -1,4 +1,4 @@
-## 1. Architecture
+## 0. Architecture
 
 ```
 [노트북]
@@ -168,4 +168,27 @@ export ROS_DOMAIN_ID=100
 source /opt/ros/foxy/setup.bash 
 python3 task3.py
 ```
+---
+## 3. 시뮬레이터 실행
 
+### 3-1 시뮬레이터 실행
+
+```bash
+cd ~/Desktop/Mobility_Challenge_Simulator
+source /opt/ros/foxy/setup.bash
+source install/setup.bash
+export ROS_DOMAIN_ID=100
+ros2 launch simulator_launch simulator_launch.py
+```
+
+### 3-2 제어코드 적용
+- 시뮬레이터용 제어코드: `simul.py`
+  
+```bash
+source /opt/ros/foxy/setup.bash
+source ~/Mobility_Challenge_Simulator/install/setup.bash
+export ROS_DOMAIN_ID=100
+
+cd ~/Desktop/Mobility_Challenge_Simulator/src/central_control/task3
+python3 task3.py
+```
