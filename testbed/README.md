@@ -15,40 +15,15 @@
 
  `/cmd_vel`
 
-- CAV1 Jetson: `ROS_DOMAIN_ID=100`
-- CAV2 Jetson: `ROS_DOMAIN_ID=100`
-- CAV3 Jetson: `ROS_DOMAIN_ID=100`
-- CAV4 Jetson: `ROS_DOMAIN_ID=100`
+- CAV01 Jetson: `ROS_DOMAIN_ID=100`
+- CAV02 Jetson: `ROS_DOMAIN_ID=100`
+- CAV03 Jetson: `ROS_DOMAIN_ID=100`
+- CAV04 Jetson: `ROS_DOMAIN_ID=100`
+
 
 ---
 
-### 1-1. SSH 설정
-
-**초기 세팅:**
-
-```bash
-cd KAIST_Mobility_Challenge_SDK/
-ls -l /dev/ttyUSB*
-sudo picocom -b 115200 /dev/ttyACM0 
-```
-
-**WIFI 세팅:**
-
-```bash
-#jetson terminal 접속
-ssh jetson
-```
-
-**Dashboard 실행:**
-
-```bash
-cd ~/Desktop/Dashboard
-./KMC_Dashboard-x86_64.AppImage
-```
-
----
-
-## 2. 차량 초기 세팅
+## 1. 차량 초기 세팅
 
 - password: 1234
 
@@ -158,9 +133,9 @@ ros2 run kmc_hardware_driver_node kmc_hardware_driver_read_allstate_node \
 
 ---
 
-## 3. 차량 제어
+## 2. 차량 제어
 
-### 3-1. 정지 (ssh)
+### 2-1. 정지 (ssh)
 - 각 CAV별 번호 입력
 - CAV_28 예시
 ```bash
@@ -171,7 +146,7 @@ ros2 topic pub --once /CAV_28/cmd_vel geometry_msgs/msg/Twist \
 ```
 
 
-### 3-2. 고속 제어: 단일 실행 (ssh)
+### 2-2. 고속 제어: 단일 실행 (ssh)
 - 각 CAV별 번호 입력
 - CAV_28 예시
 ```bash
@@ -185,7 +160,7 @@ ros2 run kmc_hardware_driver_node kmc_hardware_high_rate_control_node \
   -r cmd_vel:=/CAV_28/cmd_vel
 ```
 
-### 3-4. [task3.py](http://task3.py) 실행 (local)
+### 2-4. [task3.py](http://task3.py) 실행 (local)
 
 ```bash
 export ROS_DOMAIN_ID=100 
